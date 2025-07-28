@@ -19,7 +19,7 @@ def test_clickhouse_config_creation():
     assert config.port == "9000"
     assert config.user == "default"
     assert config.password == ""  # Default value
-    assert config.secure == "true"  # Default value (changed from false)
+    assert config.secure == "true"  # Default value for secure connections
 
 
 def test_builtin_connections_exist():
