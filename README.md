@@ -57,7 +57,7 @@ result = await query_clickhouse(query="SHOW TABLES", connection=config)
 
 ```python
 # When installed as a library: pip install clickhouse-mcp-agent
-from clickhouse_mcp_agent import query_clickhouse, ClickHouseConfig
+from agent import query_clickhouse, ClickHouseConfig
 
 # Basic usage
 result = await query_clickhouse("SHOW DATABASES", "playground")
@@ -70,6 +70,19 @@ user_config = ClickHouseConfig(
     password="jane_specific_password"
 )
 result = await query_clickhouse("SELECT * FROM user_logs", user_config)
+
+# Completely dynamic 
+result = await query_clickhouse(
+    query="SHOW TABLES",
+    connection=ClickHouseConfig(
+        name="runtime",
+        host="dynamic.clickhouse.com",
+        user="runtime_user",
+        password="runtime_pass"
+    ),
+    model="gemini-1.5-flash",
+    api_key="your-google-api-key-here" 
+)
 ```
 
 ### Environment Variables
@@ -105,7 +118,7 @@ Returns `ClickHouseOutput` with:
 ## Requirements
 
 - Python 3.10+
-- Google/Gemini API key
+- AI API key (Google/Gemini) - can be set via environment variable, .env file, or passed directly to the function
 
 All other dependencies (UV, MCP servers, etc.) are handled automatically by pyproject.toml.
 
@@ -118,6 +131,8 @@ All other dependencies (UV, MCP servers, etc.) are handled automatically by pypr
 - [x] **Schema Inspection**: Database, table, and column exploration
 - [x] **Connection Management**: Multiple connection configurations (playground, local, env)
 - [x] **RBAC Support**: Pass different user credentials dynamically via ClickHouseConfig
+- [x] **Dynamic Connections**: Runtime connection configuration without environment dependencies
+- [x] **Direct API Key Passing**: Pass AI API keys directly to functions without environment variables
 - [x] **Structured Output**: ClickHouseOutput with analysis, SQL, and confidence
 - [x] **CLI Interface**: Command-line tool via clickhouse-mcp-demo
 
@@ -128,9 +143,8 @@ All other dependencies (UV, MCP servers, etc.) are handled automatically by pypr
 - [ ] **Message History**: Add message_history parameter to query_clickhouse() for conversation continuity
 - [ ] **Conversational Agent**: ConversationalClickHouseAgent class for persistent memory across queries
 
-#### RBAC & Dynamic Configuration
+#### Model Support
 
-- [ ] **Dynamic Connections**: Runtime connection configuration without .env dependency
 - [ ] **Model Agnostic Support**: Support for different AI models beyond Gemini
 
 ---
@@ -143,4 +157,4 @@ Have ideas for new features? Found something missing?
 2. Open a feature request with use case details
 3. Consider contributing via pull request
 
-**Current Focus**: Message history integration and RBAC support for multi-user scenarios.
+**Current Focus**: Message history integration and model agnostic support.
