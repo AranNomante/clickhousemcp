@@ -3,8 +3,6 @@ name: Publish to PyPI
 on:
   release:
     types: [published]
-    # Only publish releases created from the master branch
-    branches: [master]
 
 jobs:
   pypi-publish:
