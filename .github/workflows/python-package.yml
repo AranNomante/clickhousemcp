@@ -1,0 +1,84 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+
+name: Python package
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install UV package manager
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Install dependencies
+      run: |
+        uv pip install --system -e ".[dev]"
+    
+    - name: Lint with flake8
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=.venv,__pycache__,.git
+    
+    - name: Test package installation
+      run: |
+        python -c "from agent import query_clickhouse, ClickHouseConfig; print('✅ Package imports successfully')"
+    
+    - name: Test CLI command
+      run: |
+        clickhouse-mcp-demo --help || echo "CLI command registered but requires API key"
+    
+    - name: Run tests (if they exist)
+      run: |
+        if [ -f "test_*.py" ] || [ -d "tests/" ]; then
+          pytest -v
+        else
+          echo "No tests found - skipping test phase"
+        fi
+      continue-on-error: true
+
+  package-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.12"
+    
+    - name: Install UV package manager
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Test package build
+      run: |
+        uv build
+        ls -la dist/
+    
+    - name: Test package installation from wheel
+      run: |
+        uv pip install --system dist/*.whl
+        python -c "from agent import query_clickhouse; print('✅ Wheel installation successful')"

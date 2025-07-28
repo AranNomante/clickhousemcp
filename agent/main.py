@@ -11,7 +11,8 @@ from agent.env_config import config as env_config
 async def query_clickhouse(
     query: str,
     connection: str = "playground",
-    model: str = None
+    model: str = None,
+    api_key: str = None
 ):
     """
     Query ClickHouse using a predefined connection configuration.
@@ -20,6 +21,7 @@ async def query_clickhouse(
         query: The question or analysis request
         connection: Connection name ('playground', 'local', 'env') or ClickHouseConfig
         model: AI model to use
+        api_key: AI API key (if not provided, uses environment variables)
         
     Returns:
         ClickHouseOutput with analysis results
@@ -48,7 +50,8 @@ async def query_clickhouse(
         user=config.user,
         password=config.password,
         secure=config.secure,
-        model=model
+        model=model,
+        api_key=api_key
     )
 
 

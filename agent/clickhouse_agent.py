@@ -39,7 +39,8 @@ async def run_clickhouse_agent(
     user: str = "demo", 
     password: str = "",
     secure: str = "true",
-    model: str = None
+    model: str = None,
+    api_key: str = None
 ) -> ClickHouseOutput:
     """
     Run a query against ClickHouse using the MCP-enabled agent.
@@ -52,6 +53,7 @@ async def run_clickhouse_agent(
         password: ClickHouse password
         secure: Whether to use secure connection
         model: AI model to use
+        api_key: AI API key (if not provided, uses environment variables)
         
     Returns:
         ClickHouseOutput with analysis results
@@ -59,6 +61,16 @@ async def run_clickhouse_agent(
     
     if model is None:
         model = config.ai_model
+    
+    # Determine which model and provider to use
+    agent_model = model or config.ai_model
+    
+    # If API key is provided, set environment variable temporarily
+    original_api_key = None
+    if api_key:
+        original_api_key = os.environ.get('GOOGLE_API_KEY')
+        os.environ['GOOGLE_API_KEY'] = api_key
+        logger.info(f"Using custom configuration for model")
     
     logger.info(f"Running ClickHouse agent query: {query[:50]}...")
     
@@ -90,7 +102,7 @@ async def run_clickhouse_agent(
     
     # Create agent with MCP server
     agent = Agent(
-        model,
+        agent_model,
         deps_type=ClickHouseDependencies,
         output_type=ClickHouseOutput,
         mcp_servers=[server],
@@ -125,6 +137,13 @@ async def run_clickhouse_agent(
         if "TaskGroup" in str(e):
             raise Exception("MCP server connection failed. This might be due to network issues or UV environment conflicts.")
         raise
+    finally:
+        # Restore original API key if it was temporarily set
+        if api_key:
+            if original_api_key is not None:
+                os.environ['GOOGLE_API_KEY'] = original_api_key
+            elif 'GOOGLE_API_KEY' in os.environ:
+                del os.environ['GOOGLE_API_KEY']
 
 
 if __name__ == '__main__':
