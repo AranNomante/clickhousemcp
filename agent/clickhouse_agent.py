@@ -70,7 +70,7 @@ async def run_clickhouse_agent(
     if api_key:
         original_api_key = os.environ.get('GOOGLE_API_KEY')
         os.environ['GOOGLE_API_KEY'] = api_key
-        logger.info(f"Using provided API key for model {model_name}")
+        logger.info(f"Using custom configuration for model {model_name}")
     
     logger.info(f"Running ClickHouse agent query: {query[:50]}...")
     
