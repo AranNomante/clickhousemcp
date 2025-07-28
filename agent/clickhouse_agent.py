@@ -63,8 +63,7 @@ async def run_clickhouse_agent(
         model = config.ai_model
     
     # Determine which model and provider to use
-    model_name = model or config.ai_model
-    agent_model = model_name
+    agent_model = model or config.ai_model
     
     # If API key is provided, set environment variable temporarily
     original_api_key = None
