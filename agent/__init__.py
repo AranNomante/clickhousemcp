@@ -10,12 +10,12 @@ from .main import query_clickhouse
 from .env_config import EnvConfig, config
 
 __all__ = [
-    'run_clickhouse_agent',
-    'query_clickhouse', 
-    'ClickHouseDependencies',
-    'ClickHouseOutput',
-    'ClickHouseConfig',
-    'ClickHouseConnections',
-    'EnvConfig',
-    'config'
-] 
+    "run_clickhouse_agent",
+    "query_clickhouse",
+    "ClickHouseDependencies",
+    "ClickHouseOutput",
+    "ClickHouseConfig",
+    "ClickHouseConnections",
+    "EnvConfig",
+    "config",
+]

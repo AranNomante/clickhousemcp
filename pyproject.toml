@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clickhouse-mcp-agent"
-version = "0.1.0a1"
+version = "0.2.0a1"
 description = "AI agent for ClickHouse database analysis via MCP"
 readme = "README.md"
 license = {text = "MIT"}
@@ -58,7 +58,7 @@ clickhouse-mcp-demo = "agent.main:cli_main"
 include = ["agent*"]
 
 [tool.black]
-line-length = 88
+line-length = 120
 target-version = ['py310']
 
 [tool.isort]

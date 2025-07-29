@@ -25,9 +25,9 @@ clickhousemcp/
 ### Core Files
 
 - **clickhouse_agent.py**: PydanticAI agent with MCP server integration
-  - Handles dynamic API key passing via temporary environment variables
+  - Handles API key management via temporary environment variables
   - Supports runtime connection configuration
-  - MCP server stdio communication
+  - MCP server stdio communication with toolsets integration
   
 - **config.py**: Built-in connection configurations
   - ClickHouseConfig dataclass for dynamic connections
@@ -37,11 +37,12 @@ clickhousemcp/
 - **main.py**: High-level interface and CLI entry point
   - query_clickhouse() convenience function
   - CLI command registration via pyproject.toml
+  - Simplified API with consistent parameter ordering
 
 - **env_config.py**: Environment and configuration management
   - Automatic .env loading with python-dotenv
-  - Configuration validation
-  - Logging setup
+  - Configuration validation with proper type annotations
+  - Structured logging setup
 
 ### Utility Scripts
 
@@ -66,14 +67,14 @@ clickhousemcp/
 ### 3. Flexible API Key Handling
 
 - Environment variables (.env file)
-- Direct parameter passing to functions
-- Temporary environment variable management with cleanup
+- Direct parameter passing to functions (model_api_key parameter)
+- Temporary environment variable management with automatic cleanup
 
 ### 4. MCP Integration
 
 - PydanticAI agent with ClickHouse MCP server
-- Stdio transport for tool communication
-- Automatic server lifecycle management
+- Stdio transport for tool communication via toolsets
+- Automatic server lifecycle management with async context managers
 
 ## Dependency Management
 
@@ -101,6 +102,7 @@ cp .env.example .env    # One-time setup
 result = await query_clickhouse(
     query="SELECT 1",
     connection=ClickHouseConfig(...),
+    model="gemini-2.0-flash",
     api_key="your-key-here"
 )
 ```
@@ -108,6 +110,7 @@ result = await query_clickhouse(
 ## Architecture Patterns
 
 - **Agent Pattern**: PydanticAI agent for structured AI interactions
-- **MCP Protocol**: Model Context Protocol for tool integration
+- **MCP Protocol**: Model Context Protocol for tool integration via toolsets
 - **Dependency Injection**: Runtime configuration via dataclasses
 - **Factory Pattern**: Connection configuration factory methods
+- **Type Safety**: Full mypy compliance with proper type annotations

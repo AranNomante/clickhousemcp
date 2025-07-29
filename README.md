@@ -32,7 +32,9 @@ from agent import query_clickhouse
 
 result = await query_clickhouse(
     query="What are the top 5 GitHub repositories by stars?",
-    connection="playground"
+    connection="playground",
+    model="gemini-2.0-flash",
+    api_key="your-google-api-key"
 )
 print(f"Analysis: {result.analysis}")
 ```
@@ -50,7 +52,12 @@ config = ClickHouseConfig(
     password="secret"
 )
 
-result = await query_clickhouse(query="SHOW TABLES", connection=config)
+result = await query_clickhouse(
+    query="SHOW TABLES", 
+    connection=config,
+    model="gemini-2.0-flash",
+    api_key="your-google-api-key"
+)
 ```
 
 ### Current Usage (Library Import)
@@ -60,16 +67,26 @@ result = await query_clickhouse(query="SHOW TABLES", connection=config)
 from agent import query_clickhouse, ClickHouseConfig
 
 # Basic usage
-result = await query_clickhouse("SHOW DATABASES", "playground")
+result = await query_clickhouse(
+    query="SHOW DATABASES", 
+    connection="playground",
+    model="gemini-2.0-flash",
+    api_key="your-google-api-key"
+)
 
-# RBAC with dynamic user credentials (already supported)
+# RBAC with dynamic user credentials
 user_config = ClickHouseConfig(
     name="user_session",
     host="clickhouse.company.com",
     user="analyst_jane",
     password="jane_specific_password"
 )
-result = await query_clickhouse("SELECT * FROM user_logs", user_config)
+result = await query_clickhouse(
+    query="SELECT * FROM user_logs", 
+    connection=user_config,
+    model="gemini-2.0-flash",
+    api_key="your-google-api-key"
+)
 
 # Completely dynamic 
 result = await query_clickhouse(
@@ -80,7 +97,7 @@ result = await query_clickhouse(
         user="runtime_user",
         password="runtime_pass"
     ),
-    model="gemini-1.5-flash",
+    model="gemini-2.0-flash",
     api_key="your-google-api-key-here" 
 )
 ```
@@ -90,7 +107,12 @@ result = await query_clickhouse(
 The project automatically loads from `.env` file:
 
 ```python
-result = await query_clickhouse(query="SELECT 1", connection="env")
+result = await query_clickhouse(
+    query="SELECT 1", 
+    connection="env",
+    model="gemini-2.0-flash",
+    api_key="your-google-api-key"
+)
 ```
 
 ## Built-in Connections
@@ -114,6 +136,8 @@ python -m agent.main            # Direct module execution
 Returns `ClickHouseOutput` with:
 
 - `analysis`: Natural language results with SQL queries mentioned in the response
+- `sql_used`: Optional SQL query that was executed (when available)
+- `confidence`: Confidence level of the analysis (1-10 scale)
 
 ## Requirements
 
@@ -132,9 +156,11 @@ All other dependencies (UV, MCP servers, etc.) are handled automatically by pypr
 - [x] **Connection Management**: Multiple connection configurations (playground, local, env)
 - [x] **RBAC Support**: Pass different user credentials dynamically via ClickHouseConfig
 - [x] **Dynamic Connections**: Runtime connection configuration without environment dependencies
-- [x] **Direct API Key Passing**: Pass AI API keys directly to functions without environment variables
+- [x] **Direct API Key Passing**: Pass AI API keys directly to functions (model_api_key parameter)
 - [x] **Structured Output**: ClickHouseOutput with analysis, SQL, and confidence
 - [x] **CLI Interface**: Command-line tool via clickhouse-mcp-demo
+- [x] **Type Safety**: Full mypy compliance with proper type annotations
+- [x] **Code Quality**: Black formatting, isort import organization, flake8 linting
 
 ### 🚧 Planned Features (Discussed)
 

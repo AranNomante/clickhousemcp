@@ -45,10 +45,6 @@ jobs:
       run: |
         python -c "from agent import query_clickhouse, ClickHouseConfig; print('✅ Package imports successfully')"
     
-    - name: Test CLI command
-      run: |
-        clickhouse-mcp-demo --help || echo "CLI command registered but requires API key"
-    
     - name: Run tests (if they exist)
       run: |
         if [ -f "test_*.py" ] || [ -d "tests/" ]; then

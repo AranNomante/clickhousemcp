@@ -4,19 +4,21 @@ This agent uses a similar pattern to the bank support example but integrates
 with ClickHouse via MCP server for database queries.
 """
 
-from dataclasses import dataclass
-from typing import Optional
 import os
 
-from pydantic_ai import Agent, RunContext
+from dataclasses import dataclass
+from typing import Optional
+
+from pydantic_ai import Agent
 from pydantic_ai.mcp import MCPServerStdio
 
-from .env_config import config, logger
+from .env_config import logger
 
 
 @dataclass
 class ClickHouseDependencies:
     """Dependencies for ClickHouse connection and MCP server configuration."""
+
     host: str
     port: str
     user: str
@@ -24,27 +26,28 @@ class ClickHouseDependencies:
     secure: str = "true"
 
 
-@dataclass 
+@dataclass
 class ClickHouseOutput:
     """Output structure for ClickHouse agent responses."""
+
     analysis: str
     sql_used: Optional[str] = None
     confidence: int = 5  # Default confidence level (1-10)
 
 
 async def run_clickhouse_agent(
+    model_api_key: str,
+    model: str,
     query: str,
     host: str,
     port: str = "8443",
-    user: str = "demo", 
+    user: str = "demo",
     password: str = "",
     secure: str = "true",
-    model: str = None,
-    api_key: str = None
 ) -> ClickHouseOutput:
     """
     Run a query against ClickHouse using the MCP-enabled agent.
-    
+
     Args:
         query: The question or analysis request
         host: ClickHouse host
@@ -54,26 +57,15 @@ async def run_clickhouse_agent(
         secure: Whether to use secure connection
         model: AI model to use
         api_key: AI API key (if not provided, uses environment variables)
-        
+
     Returns:
         ClickHouseOutput with analysis results
     """
-    
-    if model is None:
-        model = config.ai_model
-    
-    # Determine which model and provider to use
-    agent_model = model or config.ai_model
-    
-    # If API key is provided, set environment variable temporarily
-    original_api_key = None
-    if api_key:
-        original_api_key = os.environ.get('GOOGLE_API_KEY')
-        os.environ['GOOGLE_API_KEY'] = api_key
-        logger.info(f"Using custom configuration for model")
-    
+
+    os.environ["GOOGLE_API_KEY"] = model_api_key
+
     logger.info(f"Running ClickHouse agent query: {query[:50]}...")
-    
+
     # Create dependencies with connection info
     deps = ClickHouseDependencies(
         host=host,
@@ -82,108 +74,85 @@ async def run_clickhouse_agent(
         password=password,
         secure=secure,
     )
-    
+
     # Set up environment for MCP server
     env = {
         "CLICKHOUSE_HOST": host,
         "CLICKHOUSE_PORT": port,
         "CLICKHOUSE_USER": user,
         "CLICKHOUSE_PASSWORD": password,
-        "CLICKHOUSE_SECURE": secure
+        "CLICKHOUSE_SECURE": secure,
     }
-    
+
     # Create MCP server configuration
     # Use the mcp-clickhouse binary from current environment
-    server = MCPServerStdio(
-        'mcp-clickhouse',  # Binary should be in PATH when venv is activated
-        args=[],
-        env=env
-    )
+    server = MCPServerStdio("mcp-clickhouse", args=[], env=env)  # Binary should be in PATH when venv is activated
     
     # Create agent with MCP server
-    agent = Agent(
-        agent_model,
+    agent = Agent( 
+        model=model,
         deps_type=ClickHouseDependencies,
         output_type=ClickHouseOutput,
-        mcp_servers=[server],
+        toolsets=[server],
         system_prompt=(
-            'You are a ClickHouse database analyst. Use the available MCP tools to '
-            'query ClickHouse databases and provide insightful analysis. '
-            'Always mention the SQL queries you used in your response. '
-            'Be precise and include relevant data to support your analysis.'
+            "You are a ClickHouse database analyst. Use the available MCP tools to "
+            "query ClickHouse databases and provide insightful analysis. "
+            "Always mention the SQL queries you used in your response. "
+            "Be precise and include relevant data to support your analysis."
         ),
+        retries=3,
+        output_retries=3,
     )
-
-    @agent.system_prompt
-    async def add_connection_info(ctx: RunContext[ClickHouseDependencies]) -> str:
-        """Add ClickHouse connection information to the system prompt."""
-        deps = ctx.deps
-        connection_info = (
-            f"You are connected to ClickHouse at {deps.host}:{deps.port} "
-            f"as user '{deps.user}'. "
-        )
-
-        connection_info += "Use the available MCP tools to execute queries and analyze data."
-        return connection_info
 
     # Run the agent with MCP servers
     try:
-        async with agent.run_mcp_servers():
+        async with agent:
             result = await agent.run(query, deps=deps)
             return result.output
     except Exception as e:
         logger.error(f"MCP agent execution failed: {e}")
         # Try to provide more specific error information
         if "TaskGroup" in str(e):
-            raise Exception("MCP server connection failed. This might be due to network issues or UV environment conflicts.")
+            raise Exception(
+                "MCP server connection failed. This might be due to network issues or UV environment conflicts."
+            )
         raise
     finally:
-        # Restore original API key if it was temporarily set
-        if api_key:
-            if original_api_key is not None:
-                os.environ['GOOGLE_API_KEY'] = original_api_key
-            elif 'GOOGLE_API_KEY' in os.environ:
-                del os.environ['GOOGLE_API_KEY']
+        del os.environ["GOOGLE_API_KEY"]
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
-    
+
     # Example usage with ClickHouse SQL playground
-    async def main():
+    async def main() -> None:
         # Query the public ClickHouse playground
         result = await run_clickhouse_agent(
-            query="What are the top 5 most starred GitHub repositories?",
+            model_api_key=os.environ.get("GOOGLE_API_KEY", "your_api_key_here"),
+            model="gemini-2.0-flash",
+            query="What can I do with ClickHouse?",
             host="sql-clickhouse.clickhouse.com",
             port="8443",
             user="demo",
             password="",
-            secure="true"
+            secure="true",
         )
-        
+
         print("Analysis:", result.analysis)
-        if result.sql_used:
-            print("SQL Used:", result.sql_used)
+        print("SQL Used: N/A")
         print("Confidence:", result.confidence)
-        
+
         # Example with different query
         result2 = await run_clickhouse_agent(
+            model_api_key=os.environ.get("GOOGLE_API_KEY", "your_api_key_here"),
+            model="gemini-2.0-flash",
             query="Show me some interesting patterns in the data",
-            host="sql-clickhouse.clickhouse.com"
+            host="sql-clickhouse.clickhouse.com",
         )
-        
+
         print("\n--- Data Analysis ---")
         print("Analysis:", result2.analysis)
         print("Confidence:", result2.confidence)
+        print("SQL Used:", result2.sql_used if result2.sql_used else "N/A")
 
-    # Check API key using new config
-    from .env_config import config, validate_setup
-    
-    is_valid, issues = validate_setup()
-    if not is_valid:
-        print("❌ Setup issues found:")
-        for issue in issues:
-            print(f"  - {issue}")
-        print("\n💡 Create a .env file or set environment variables")
-    else:
-        asyncio.run(main())
+    asyncio.run(main())

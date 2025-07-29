@@ -69,7 +69,6 @@ jobs:
         source test_env/bin/activate
         pip install dist/*.whl
         python -c "from agent import query_clickhouse, ClickHouseConfig; print('✅ Package imports successfully')"
-        clickhouse-mcp-demo --help || echo "CLI registered (API key required for full functionality)"
     
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
