@@ -42,3 +42,8 @@ fi
 
 echo -e "${GREEN}✅ Cleanup complete!${NC}"
 echo -e "${BLUE}💡 Run ./setup.sh to reinstall${NC}"
+
+# Remove mypy and pytest cache
+find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
+find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+
