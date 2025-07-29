@@ -9,20 +9,6 @@ A PydanticAI agent that integrates with ClickHouse databases using the Model Con
 - Flexible connection management for different ClickHouse instances
 - Built-in configurations for common scenarios
 
-## Installation
-
-```bash
-./setup.sh               # Setup virtual environment and install
-cp .env.example .env      # Configure environment
-# Edit .env with your GOOGLE_API_KEY
-```
-
-## Run
-
-```bash
-./run.sh                 # Activate environment and run project
-```
-
 ## Usage
 
 ### Basic Query
