@@ -130,4 +130,4 @@ class ClickHouseAgent:
                 )
             raise
         finally:
-            del os.environ["GOOGLE_API_KEY"]
+            os.environ.pop("GOOGLE_API_KEY", None)
