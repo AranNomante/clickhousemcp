@@ -25,11 +25,12 @@ class EnvConfig:
 
     def set_log_level(self, level: str) -> None:
         self.log_level = level
-        # Set log level for all loggers in the package
-        logging.getLogger().setLevel(level)
+        # Set log level for loggers within the application's namespace
+        namespace = __name__.split('.')[0]  # Get the top-level package name
         for name in logging.root.manager.loggerDict:
-            logging.getLogger(name).setLevel(level)
-        logger.info(f"Log level set to: {level} (applied globally)")
+            if name.startswith(namespace):
+                logging.getLogger(name).setLevel(level)
+        logger.info(f"Log level set to: {level} (applied to namespace '{namespace}')")
 
     def set_debug(self, debug: bool) -> None:
         self.debug = debug
