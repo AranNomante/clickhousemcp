@@ -106,6 +106,6 @@ async def test_clickhouse_output_structure() -> None:
     assert output.sql_used == "SELECT 1"
     assert output.confidence == 8
 
-    # Edge case: missing optional sql_used
-    output2 = ClickHouseOutput(analysis="A", confidence=1)
-    assert output2.sql_used is None
+    # Edge case: explicitly omit the optional sql_used parameter
+    output2 = ClickHouseOutput(analysis="A", confidence=1)  # sql_used is not passed
+    assert output2.sql_used is None  # Verify default value is None
