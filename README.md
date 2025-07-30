@@ -1,172 +1,110 @@
 # ClickHouse MCP Agent
 
-A PydanticAI agent that integrates with ClickHouse databases using the Model Context Protocol (MCP).
+![version](https://img.shields.io/badge/version-0.3.1a0-blue)
+
+AI agent for ClickHouse database analysis via MCP (Model Context Protocol).
 
 ## Features
 
-- MCP-based ClickHouse integration with secure database access
-- Structured output with natural language analysis and SQL transparency
-- Flexible connection management for different ClickHouse instances
-- Built-in configurations for common scenarios
+- Query ClickHouse databases using AI models
+- Structured output: analysis, SQL used, confidence
+- Easy connection management (predefined or custom)
+- No CLI or environment setup required
 
 ## Usage
 
-### Basic Query
+### Basic Example
 
 ```python
-from agent import query_clickhouse
+import asyncio
+from agent.clickhouse_agent import ClickHouseAgent
+from agent.config import config
 
-result = await query_clickhouse(
-    query="What are the top 5 GitHub repositories by stars?",
-    connection="playground",
-    model="gemini-2.0-flash",
-    api_key="your-google-api-key"
-)
-print(f"Analysis: {result.analysis}")
+# Set up model and logging (optional)
+config.set_ai_model("gemini-2.0-flash")
+config.set_log_level("INFO")
+
+# Set connection defaults (optional)
+config.set_clickhouse(host="sql-clickhouse.clickhouse.com", user="demo")
+
+# The 'query' parameter is a natural language request from the user. The agent will analyze it and generate the appropriate SQL for ClickHouse.
+async def run_query():
+    agent = ClickHouseAgent()
+    result = await agent.run(
+        model_api_key="your_api_key_here",
+        model=config.ai_model,
+        query="Show all databases available to the demo user"
+        # Uses config defaults for connection
+    )
+    print("Analysis:", result.analysis)
+    print("SQL Used:", result.sql_used)
+    print("Confidence:", result.confidence)
+
+asyncio.run(run_query())
 ```
 
-### Custom Connection
+### Custom Connection Example
 
 ```python
-from agent import ClickHouseConfig
+from agent.clickhouse_agent import ClickHouseAgent
+from agent.config import ClickHouseConnections
 
-config = ClickHouseConfig(
-    name="production",
-    host="clickhouse.company.com",
-    port="8443",
-    user="analyst",
-    password="secret"
-)
-
-result = await query_clickhouse(
-    query="SHOW TABLES", 
-    connection=config,
+ch_config = ClickHouseConnections.get_config("playground")
+agent = ClickHouseAgent()
+result = await agent.run(
+    model_api_key="your_api_key_here",
     model="gemini-2.0-flash",
-    api_key="your-google-api-key"
+    query="List all tables in the default database",
+    host=ch_config.host,
+    port=ch_config.port,
+    user=ch_config.user,
+    password=ch_config.password,
+    secure=ch_config.secure,
 )
-```
-
-### Current Usage (Library Import)
-
-```python
-# When installed as a library: pip install clickhouse-mcp-agent
-from agent import query_clickhouse, ClickHouseConfig
-
-# Basic usage
-result = await query_clickhouse(
-    query="SHOW DATABASES", 
-    connection="playground",
-    model="gemini-2.0-flash",
-    api_key="your-google-api-key"
-)
-
-# RBAC with dynamic user credentials
-user_config = ClickHouseConfig(
-    name="user_session",
-    host="clickhouse.company.com",
-    user="analyst_jane",
-    password="jane_specific_password"
-)
-result = await query_clickhouse(
-    query="SELECT * FROM user_logs", 
-    connection=user_config,
-    model="gemini-2.0-flash",
-    api_key="your-google-api-key"
-)
-
-# Completely dynamic 
-result = await query_clickhouse(
-    query="SHOW TABLES",
-    connection=ClickHouseConfig(
-        name="runtime",
-        host="dynamic.clickhouse.com",
-        user="runtime_user",
-        password="runtime_pass"
-    ),
-    model="gemini-2.0-flash",
-    api_key="your-google-api-key-here" 
-)
-```
-
-### Environment Variables
-
-The project automatically loads from `.env` file:
-
-```python
-result = await query_clickhouse(
-    query="SELECT 1", 
-    connection="env",
-    model="gemini-2.0-flash",
-    api_key="your-google-api-key"
-)
-```
-
-## Built-in Connections
-
-- `playground`: ClickHouse SQL playground (public demo data)
-- `local`: Local instance (localhost:9000)
-- `env`: From environment variables
-
-## CLI
-
-```bash
-./run.sh                         # Automated run script
-# OR manually:
-source .venv/bin/activate
-clickhouse-mcp-demo             # CLI command from pyproject.toml
-python -m agent.main            # Direct module execution
+print("Analysis:", result.analysis)
 ```
 
 ## Output
 
-Returns `ClickHouseOutput` with:
+Returns a `ClickHouseOutput` object:
 
-- `analysis`: Natural language results with SQL queries mentioned in the response
-- `sql_used`: Optional SQL query that was executed (when available)
-- `confidence`: Confidence level of the analysis (1-10 scale)
+- `analysis`: Natural language results with SQL queries
+- `sql_used`: SQL query that was executed
+- `confidence`: Confidence level (1-10)
 
 ## Requirements
 
 - Python 3.10+
-- AI API key (Google/Gemini) - can be set via environment variable, .env file, or passed directly to the function
+- AI API key (Google/Gemini)
 
-All other dependencies (UV, MCP servers, etc.) are handled automatically by pyproject.toml.
+
+All dependencies are handled by `pyproject.toml`.
 
 ## Roadmap
 
 ### ✅ Completed Features
 
 - [x] **MCP Integration**: PydanticAI + ClickHouse MCP server integration
-- [x] **Query Execution**: SQL query execution via MCP tools
+- [x] **Query Execution**: SQL query generation and execution via MCP
 - [x] **Schema Inspection**: Database, table, and column exploration
-- [x] **Connection Management**: Multiple connection configurations (playground, local, env)
-- [x] **RBAC Support**: Pass different user credentials dynamically via ClickHouseConfig
-- [x] **Dynamic Connections**: Runtime connection configuration without environment dependencies
-- [x] **Direct API Key Passing**: Pass AI API keys directly to functions (model_api_key parameter)
+- [x] **Connection Management**: Multiple connection configurations (playground, custom)
+- [x] **RBAC Support**: Per-query user credentials via config
+- [x] **Dynamic Connections**: Runtime connection configuration, no environment dependencies
+- [x] **Direct API Key Passing**: Pass AI API keys directly to agent (model_api_key)
 - [x] **Structured Output**: ClickHouseOutput with analysis, SQL, and confidence
-- [x] **CLI Interface**: Command-line tool via clickhouse-mcp-demo
-- [x] **Type Safety**: Full mypy compliance with proper type annotations
-- [x] **Code Quality**: Black formatting, isort import organization, flake8 linting
+- [x] **Type Safety**: Full type annotations and mypy compliance
+- [x] **Code Quality**: Black formatting, isort, flake8 linting
 
-### 🚧 Planned Features (Discussed)
+### 🚧 Planned / In Progress
 
-#### Enhanced Conversation Support
-
-- [ ] **Message History**: Add message_history parameter to query_clickhouse() for conversation continuity
-- [ ] **Conversational Agent**: ConversationalClickHouseAgent class for persistent memory across queries
-
-#### Model Support
-
-- [ ] **Model Agnostic Support**: Support for different AI models beyond Gemini
+- [ ] **Message History**: Add message_history parameter for conversational context
+- [ ] **Conversational Agent**: Persistent memory across queries
+- [ ] **Model Agnostic Support**: Support for additional AI models
+- [ ] **Improved Error Handling**: More robust error and exception management
+- [ ] **Advanced Output Formatting**: Customizable output for downstream applications
 
 ---
 
-### Contributing
+## Contributing
 
-Have ideas for new features? Found something missing?
-
-1. Check existing issues/discussions
-2. Open a feature request with use case details
-3. Consider contributing via pull request
-
-**Current Focus**: Message history integration and model agnostic support.
+Open an issue or pull request for features or fixes.

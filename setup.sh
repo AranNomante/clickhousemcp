@@ -28,10 +28,11 @@ fi
 echo -e "${YELLOW}🔌 Activating virtual environment...${NC}"
 source .venv/bin/activate
 
-# Upgrade pip and install package
-echo -e "${YELLOW}📥 Installing package...${NC}"
+
+# Upgrade pip and install package and dev dependencies
+echo -e "${YELLOW}📥 Installing package and dev dependencies...${NC}"
 pip install --upgrade pip
-pip install -e .
+pip install -e .[dev]
 
 # Deactivate virtual environment
 deactivate

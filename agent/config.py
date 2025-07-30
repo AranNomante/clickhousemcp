@@ -1,8 +1,68 @@
-"""Configuration management for ClickHouse connections."""
-
-import os
+import logging
 from dataclasses import dataclass
 from typing import Dict, Optional
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EnvConfig:
+    """Central configuration for AI and ClickHouse settings."""
+
+    ai_model: str = "gemini-2.0-flash"
+    log_level: str = "INFO"
+    debug: bool = False
+
+    clickhouse_host: str = "sql-clickhouse.clickhouse.com"
+    clickhouse_port: str = "8443"
+    clickhouse_user: str = "demo"
+    clickhouse_password: str = ""
+    clickhouse_secure: str = "true"
+
+    def set_ai_model(self, model: str) -> None:
+        self.ai_model = model
+        logger.info(f"AI model set to: {model}")
+
+    def set_log_level(self, level: str) -> None:
+        self.log_level = level
+        # Set log level for loggers within the application's namespace
+        namespace = __name__.split('.')[0]  # Get the top-level package name
+        for name in logging.root.manager.loggerDict:
+            if name.startswith(namespace):
+                logging.getLogger(name).setLevel(level)
+        logger.info(f"Log level set to: {level} (applied to namespace '{namespace}')")
+
+    def set_debug(self, debug: bool) -> None:
+        self.debug = debug
+        logger.info(f"Debug mode set to: {debug}")
+
+    def set_clickhouse(
+        self,
+        host: Optional[str] = None,
+        port: Optional[str] = None,
+        user: Optional[str] = None,
+        password: Optional[str] = None,
+        secure: Optional[str] = None,
+    ) -> None:
+        if host is not None:
+            self.clickhouse_host = host
+            logger.info(f"ClickHouse host set to: {host}")
+        if port is not None:
+            self.clickhouse_port = port
+            logger.info(f"ClickHouse port set to: {port}")
+        if user is not None:
+            self.clickhouse_user = user
+            logger.info(f"ClickHouse user set to: {user}")
+        if password is not None:
+            self.clickhouse_password = password
+            logger.info("ClickHouse password updated.")
+        if secure is not None:
+            self.clickhouse_secure = secure
+            logger.info(f"ClickHouse secure set to: {secure}")
+
+
+config = EnvConfig()
+"""Configuration management for ClickHouse connections."""
 
 
 @dataclass
@@ -17,15 +77,15 @@ class ClickHouseConfig:
     secure: str = "true"
 
     @classmethod
-    def from_env(cls, prefix: str = "CLICKHOUSE") -> "ClickHouseConfig":
-        """Create config from environment variables."""
+    def from_defaults(cls) -> "ClickHouseConfig":
+        """Create config from default values only."""
         return cls(
-            name="env",
-            host=os.getenv(f"{prefix}_HOST", "localhost"),
-            port=os.getenv(f"{prefix}_PORT", "8443"),
-            user=os.getenv(f"{prefix}_USER", "default"),
-            password=os.getenv(f"{prefix}_PASSWORD", ""),
-            secure=os.getenv(f"{prefix}_SECURE", "true"),
+            name="default",
+            host="localhost",
+            port="8443",
+            user="default",
+            password="",
+            secure="true",
         )
 
 
@@ -41,13 +101,13 @@ class ClickHouseConnections:
     @classmethod
     def get_config(cls, name: str) -> Optional[ClickHouseConfig]:
         """Get a predefined configuration by name."""
-        configs = {"playground": cls.PLAYGROUND, "local": cls.LOCAL, "env": ClickHouseConfig.from_env()}
+        configs = {"playground": cls.PLAYGROUND, "local": cls.LOCAL, "default": ClickHouseConfig.from_defaults()}
         return configs.get(name.lower())
 
     @classmethod
     def list_configs(cls) -> Dict[str, ClickHouseConfig]:
         """List all available configurations."""
-        return {"playground": cls.PLAYGROUND, "local": cls.LOCAL, "env": ClickHouseConfig.from_env()}
+        return {"playground": cls.PLAYGROUND, "local": cls.LOCAL, "default": ClickHouseConfig.from_defaults()}
 
 
 def get_connection_string(config: ClickHouseConfig) -> str:
@@ -57,20 +117,3 @@ def get_connection_string(config: ClickHouseConfig) -> str:
         return f"{protocol}://{config.user}:***@{config.host}:{config.port}"
     else:
         return f"{protocol}://{config.user}@{config.host}:{config.port}"
-
-
-if __name__ == "__main__":
-    # Demo the configurations
-    print("Available ClickHouse Configurations:")
-    print("=" * 40)
-
-    for name, config in ClickHouseConnections.list_configs().items():
-        print(f"{name.upper()}:")
-        print(f"  Connection: {get_connection_string(config)}")
-        print(f"  Secure: {config.secure}")
-        print()
-
-    # Show environment-based config
-    print("Environment Variables for Custom Config:")
-    print("CLICKHOUSE_HOST, CLICKHOUSE_PORT, CLICKHOUSE_USER,")
-    print("CLICKHOUSE_PASSWORD, CLICKHOUSE_SECURE")

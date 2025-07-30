@@ -43,7 +43,7 @@ jobs:
     
     - name: Test package installation
       run: |
-        python -c "from agent import query_clickhouse, ClickHouseConfig; print('✅ Package imports successfully')"
+        python -c "from agent import ClickHouseAgent, ClickHouseConfig; print('✅ Package imports successfully')"
     
     - name: Run tests (if they exist)
       run: |
@@ -77,4 +77,4 @@ jobs:
     - name: Test package installation from wheel
       run: |
         uv pip install --system dist/*.whl
-        python -c "from agent import query_clickhouse; print('✅ Wheel installation successful')"
+        python -c "from agent import ClickHouseAgent; print('✅ Wheel installation successful')"
