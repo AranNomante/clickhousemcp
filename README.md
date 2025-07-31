@@ -1,6 +1,6 @@
 # ClickHouse MCP Agent
 
-![version](https://img.shields.io/badge/version-0.3.1a0-blue)
+![version](https://img.shields.io/badge/version-0.4.0a0-blue)
 
 AI agent for ClickHouse database analysis via MCP (Model Context Protocol).
 
