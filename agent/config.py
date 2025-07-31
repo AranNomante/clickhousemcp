@@ -115,7 +115,6 @@ class ClickHouseConfig:
     user: str = "default"
     password: str = ""
     secure: str = "true"
-    model_provider: str = "google"  # Default provider
 
     @classmethod
     def from_defaults(cls) -> "ClickHouseConfig":
@@ -127,7 +126,6 @@ class ClickHouseConfig:
             user="default",
             password="",
             secure="true",
-            model_provider="google",
         )
 
 
