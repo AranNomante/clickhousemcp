@@ -8,12 +8,24 @@ import os
 
 from dataclasses import dataclass
 from typing import Optional
+from enum import Enum
 
 from pydantic_ai import Agent
 from .server_cache import ServerTTLCache
 
 
 import logging
+
+
+# Enum for supported model providers
+class ModelProvider(Enum):
+    GOOGLE = "google"
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    GROQ = "groq"
+    MISTRAL = "mistral"
+    CO = "co"
+
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +63,10 @@ class ClickHouseAgent:
 
     async def run(
         self,
-        model_api_key: str,
         model: str,
         query: str,
+        model_api_key: Optional[str] = None,
+        provider: Optional[ModelProvider] = None,
         host: Optional[str] = None,
         port: Optional[str] = None,
         user: Optional[str] = None,
@@ -61,6 +74,16 @@ class ClickHouseAgent:
         secure: Optional[str] = None,
     ) -> ClickHouseOutput:
         from .config import config
+
+        # Determine provider: use argument if given, else config default
+        selected_provider = provider.value if provider else config.model_provider
+
+        # Use provided key if given, else get from config
+        if model_api_key is None:
+            api_key_attr = f"{selected_provider.upper()}_API_KEY"
+            model_api_key = getattr(config.model_api, api_key_attr, None)
+            if not model_api_key:
+                raise ValueError(f"API key for provider '{selected_provider}' is not set.")
 
         # Merge user-provided args with config defaults
         params = dict(
@@ -82,9 +105,10 @@ class ClickHouseAgent:
         if secure is not None:
             params["secure"] = secure
 
-        os.environ["GOOGLE_API_KEY"] = model_api_key
+        # Set API key in environment for selected provider
+        os.environ[api_key_attr] = model_api_key
 
-        logger.info(f"Running ClickHouse agent query: {query[:50]}...")
+        logger.info(f"Running ClickHouse agent query: {query[:50]}... (provider: {selected_provider})")
 
         # Create dependencies with connection info
         deps = ClickHouseDependencies(**params)
@@ -130,4 +154,4 @@ class ClickHouseAgent:
                 )
             raise
         finally:
-            os.environ.pop("GOOGLE_API_KEY", None)
+            os.environ.pop(api_key_attr, None)
