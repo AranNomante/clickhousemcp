@@ -1,15 +1,45 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, Optional
+
+
+@dataclass
+class ModelAPIConfig:
+    """Configuration for all supported model API keys."""
+
+    OPENAI_API_KEY: Optional[str] = None
+    ANTHROPIC_API_KEY: Optional[str] = None
+    GOOGLE_API_KEY: Optional[str] = None
+    GROQ_API_KEY: Optional[str] = None
+    MISTRAL_API_KEY: Optional[str] = None
+    CO_API_KEY: Optional[str] = None
+
+    def set_api_key(self, provider: str, key: str) -> None:
+        provider_map = {
+            "openai": "OPENAI_API_KEY",
+            "anthropic": "ANTHROPIC_API_KEY",
+            "google": "GOOGLE_API_KEY",
+            "groq": "GROQ_API_KEY",
+            "mistral": "MISTRAL_API_KEY",
+            "co": "CO_API_KEY",
+        }
+        attr = provider_map.get(provider.lower())
+        if attr:
+            setattr(self, attr, key)
+            logger.info(f"Set API key for {provider}.")
+        else:
+            logger.warning(f"Unknown provider: {provider}")
+
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class EnvConfig:
-    """Central configuration for AI and ClickHouse settings."""
+    """Central configuration for AI, model provider, and ClickHouse settings."""
 
     ai_model: str = "gemini-2.0-flash"
+    model_provider: str = "google"  # Default provider
     log_level: str = "INFO"
     debug: bool = False
 
@@ -19,14 +49,20 @@ class EnvConfig:
     clickhouse_password: str = ""
     clickhouse_secure: str = "true"
 
+    model_api: ModelAPIConfig = field(default_factory=ModelAPIConfig)
+
     def set_ai_model(self, model: str) -> None:
         self.ai_model = model
         logger.info(f"AI model set to: {model}")
 
+    def set_model_provider(self, provider: str) -> None:
+        self.model_provider = provider
+        logger.info(f"Model provider set to: {provider}")
+
     def set_log_level(self, level: str) -> None:
         self.log_level = level
         # Set log level for loggers within the application's namespace
-        namespace = __name__.split('.')[0]  # Get the top-level package name
+        namespace = __name__.split(".")[0]  # Get the top-level package name
         for name in logging.root.manager.loggerDict:
             if name.startswith(namespace):
                 logging.getLogger(name).setLevel(level)
@@ -60,6 +96,10 @@ class EnvConfig:
             self.clickhouse_secure = secure
             logger.info(f"ClickHouse secure set to: {secure}")
 
+    def set_model_api_key(self, provider: str, key: str) -> None:
+        self.set_model_provider(provider)
+        self.model_api.set_api_key(provider, key)
+
 
 config = EnvConfig()
 """Configuration management for ClickHouse connections."""
@@ -75,6 +115,7 @@ class ClickHouseConfig:
     user: str = "default"
     password: str = ""
     secure: str = "true"
+    model_provider: str = "google"  # Default provider
 
     @classmethod
     def from_defaults(cls) -> "ClickHouseConfig":
@@ -86,6 +127,7 @@ class ClickHouseConfig:
             user="default",
             password="",
             secure="true",
+            model_provider="google",
         )
 
 

@@ -27,7 +27,8 @@ This document describes the architecture of the ClickHouse MCP Agent library.
 ## Extensibility
 
 - Add new connection profiles in `config.py`
-- Support new AI models by updating model selection logic
+- Support new AI models and providers by updating model selection logic
+- Provider/model selection is runtime and supports multiple providers and API keys
 - Extend output formatting as needed
 
 ## License

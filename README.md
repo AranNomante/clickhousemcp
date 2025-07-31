@@ -11,58 +11,29 @@ AI agent for ClickHouse database analysis via MCP (Model Context Protocol).
 - Easy connection management (predefined or custom)
 - No CLI or environment setup required
 
+### Supported Providers
+
+- OpenAI
+- Anthropic
+- Google Gemini
+- Groq
+- Mistral
+- Cohere
+
 ## Usage
 
-### Basic Example
+- Configure your model, API key, and connection using the runtime config API.
+- Run queries using the `ClickHouseAgent`.
+- Multi-model/provider support is automatic—just set the API key for each provider.
 
-```python
-import asyncio
-from agent.clickhouse_agent import ClickHouseAgent
-from agent.config import config
+See the `examples/` directory for full, canonical usage scripts:
 
-# Set up model and logging (optional)
-config.set_ai_model("gemini-2.0-flash")
-config.set_log_level("INFO")
+- `examples/example_minimal.py`: Minimal query
+- `examples/example_switch_provider.py`: Switch provider/model at runtime
+- `examples/example_error_handling.py`: Error handling for missing API key
+- `examples/example_multi_query.py`: Multiple queries in a loop
 
-# Set connection defaults (optional)
-config.set_clickhouse(host="sql-clickhouse.clickhouse.com", user="demo")
-
-# The 'query' parameter is a natural language request from the user. The agent will analyze it and generate the appropriate SQL for ClickHouse.
-async def run_query():
-    agent = ClickHouseAgent()
-    result = await agent.run(
-        model_api_key="your_api_key_here",
-        model=config.ai_model,
-        query="Show all databases available to the demo user"
-        # Uses config defaults for connection
-    )
-    print("Analysis:", result.analysis)
-    print("SQL Used:", result.sql_used)
-    print("Confidence:", result.confidence)
-
-asyncio.run(run_query())
-```
-
-### Custom Connection Example
-
-```python
-from agent.clickhouse_agent import ClickHouseAgent
-from agent.config import ClickHouseConnections
-
-ch_config = ClickHouseConnections.get_config("playground")
-agent = ClickHouseAgent()
-result = await agent.run(
-    model_api_key="your_api_key_here",
-    model="gemini-2.0-flash",
-    query="List all tables in the default database",
-    host=ch_config.host,
-    port=ch_config.port,
-    user=ch_config.user,
-    password=ch_config.password,
-    secure=ch_config.secure,
-)
-print("Analysis:", result.analysis)
-```
+All features and usage patterns are covered in these scripts.
 
 ## Output
 
@@ -75,8 +46,7 @@ Returns a `ClickHouseOutput` object:
 ## Requirements
 
 - Python 3.10+
-- AI API key (Google/Gemini)
-
+- AI API key for your chosen provider (OpenAI, Anthropic, Google/Gemini, Groq, Mistral, Cohere)
 
 All dependencies are handled by `pyproject.toml`.
 
@@ -94,12 +64,12 @@ All dependencies are handled by `pyproject.toml`.
 - [x] **Structured Output**: ClickHouseOutput with analysis, SQL, and confidence
 - [x] **Type Safety**: Full type annotations and mypy compliance
 - [x] **Code Quality**: Black formatting, isort, flake8 linting
+- [x] **Multi-Model Support**: Runtime selection of provider/model and API key management
 
 ### 🚧 Planned / In Progress
 
 - [ ] **Message History**: Add message_history parameter for conversational context
 - [ ] **Conversational Agent**: Persistent memory across queries
-- [ ] **Model Agnostic Support**: Support for additional AI models
 - [ ] **Improved Error Handling**: More robust error and exception management
 - [ ] **Advanced Output Formatting**: Customizable output for downstream applications
 
