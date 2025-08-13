@@ -12,7 +12,8 @@ from enum import Enum
 
 from pydantic_ai import Agent
 from .server_cache import ServerTTLCache
-
+from pydantic_ai.messages import ModelMessage
+from pydantic_ai.usage import Usage
 
 import logging
 
@@ -45,9 +46,39 @@ class ClickHouseDependencies:
 class ClickHouseOutput:
     """Output structure for ClickHouse agent responses."""
 
+    """Analysis of the query result."""
     analysis: str
+
+    """Confidence level of the analysis (1-10)."""
+    confidence: int
+
+    """SQL query used to generate the result."""
     sql_used: Optional[str] = None
-    confidence: int = 5  # Default confidence level (1-10)
+
+
+@dataclass
+class RunResult:
+    """Result structure for agent run method."""
+
+    """Messages exchanged during the query."""
+    messages: list[ModelMessage]
+
+    """New messages added during the query execution."""
+    new_messages: list[ModelMessage]
+
+    usage: Usage
+
+    """Analysis of the query result."""
+    analysis: str
+
+    """Confidence level of the analysis (1-10)."""
+    confidence: int
+
+    """SQL query used to generate the result."""
+    sql_used: Optional[str] = None
+
+    """Last message in the conversation, useful for context."""
+    last_message: Optional[ModelMessage] = None
 
 
 class ClickHouseAgent:
@@ -63,8 +94,8 @@ class ClickHouseAgent:
 
     async def run(
         self,
-        model: str,
         query: str,
+        model: Optional[str] = None,
         model_api_key: Optional[str] = None,
         provider: Optional[ModelProvider] = None,
         host: Optional[str] = None,
@@ -72,11 +103,14 @@ class ClickHouseAgent:
         user: Optional[str] = None,
         password: Optional[str] = None,
         secure: Optional[str] = None,
-    ) -> ClickHouseOutput:
+        message_history: Optional[list[ModelMessage]] = None,
+    ) -> RunResult:
         from .config import config
 
         # Determine provider: use argument if given, else config default
         selected_provider = provider.value if provider else config.model_provider
+
+        model = model or config.ai_model
 
         # Use provided key if given, else get from config
         if model_api_key is None:
@@ -125,27 +159,46 @@ class ClickHouseAgent:
         # Create MCP server configuration
         server = await self.server_cache.get_server(env)
 
+        from .history_processor import history_processor
+
         # Create agent with MCP server
         agent = Agent(
             model=model,
             deps_type=ClickHouseDependencies,
             output_type=ClickHouseOutput,
             toolsets=[server],
-            system_prompt=(
-                "You are a ClickHouse database analyst. Use the available MCP tools to "
-                "query ClickHouse databases and provide insightful analysis. "
-                "Always mention the SQL queries you used in your response. "
-                "Be precise and include relevant data to support your analysis."
-            ),
+            instructions="You are a ClickHouse database analyst. Use the available MCP tools to query ClickHouse databases and provide insightful analysis. Always mention the SQL queries you used in your response. Be precise and include relevant data to support your analysis.",
             retries=3,
             output_retries=3,
         )
 
+        total_tokens = 0
+
+        for m in message_history if message_history else []:
+            if hasattr(m, "usage"):
+                total_tokens += m.usage.total_tokens
+
+        message_history = await history_processor(total_tokens, message_history)
+
         # Run the agent with MCP servers
         try:
             async with agent:
-                result = await agent.run(query, deps=deps)
-                return result.output
+                result = await agent.run(query, deps=deps, message_history=message_history)
+
+                all_messages = result.all_messages()
+                new_messages = result.new_messages()
+                usage = result.usage()
+                output = result.output
+
+                return RunResult(
+                    messages=all_messages,
+                    last_message=all_messages[-1] if all_messages else None,
+                    new_messages=new_messages,
+                    usage=usage,
+                    analysis=output.analysis,
+                    sql_used=output.sql_used,
+                    confidence=output.confidence,
+                )
         except Exception as e:
             logger.error(f"MCP agent execution failed: {e}")
             if "TaskGroup" in str(e):
