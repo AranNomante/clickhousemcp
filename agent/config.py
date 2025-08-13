@@ -2,6 +2,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Dict, Optional
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class ModelAPIConfig:
@@ -29,9 +31,6 @@ class ModelAPIConfig:
             logger.info(f"Set API key for {provider}.")
         else:
             logger.warning(f"Unknown provider: {provider}")
-
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -157,3 +156,32 @@ def get_connection_string(config: ClickHouseConfig) -> str:
         return f"{protocol}://{config.user}:***@{config.host}:{config.port}"
     else:
         return f"{protocol}://{config.user}@{config.host}:{config.port}"
+
+
+@dataclass
+class SummarizeAgentEnv:
+    """Minimal config for the summarization agent (no ClickHouse fields)."""
+
+    ai_model: str = "gemini-2.0-flash"
+    model_provider: str = "google"  # Default provider
+    model_api: ModelAPIConfig = field(default_factory=ModelAPIConfig)
+    token_limit: int = 1000  # Default token limit for summarization
+
+    def set_ai_model(self, model: str) -> None:
+        self.ai_model = model
+        logger.info(f"AI model set to: {model}")
+
+    def set_model_provider(self, provider: str) -> None:
+        self.model_provider = provider
+        logger.info(f"Model provider set to: {provider}")
+
+    def set_model_api_key(self, provider: str, key: str) -> None:
+        self.set_model_provider(provider)
+        self.model_api.set_api_key(provider, key)
+
+    def set_token_limit(self, limit: int) -> None:
+        self.token_limit = limit
+        logger.info(f"Token limit set to: {limit}")
+
+
+summarize_config = SummarizeAgentEnv()

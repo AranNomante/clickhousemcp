@@ -1,5 +1,8 @@
 """
 Example: User override of config defaults and provider
+
+NOTE: If your agent or its processors use summarization (e.g., message history summarization),
+you must set up summarize_config before running the agent. See example_message_history.py for details.
 """
 
 import asyncio

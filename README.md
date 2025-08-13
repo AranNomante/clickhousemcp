@@ -1,6 +1,6 @@
 # ClickHouse MCP Agent
 
-![version](https://img.shields.io/badge/version-0.4.0a0-blue)
+![version](https://img.shields.io/badge/version-0.5.0b0-blue)
 
 AI agent for ClickHouse database analysis via MCP (Model Context Protocol).
 
@@ -9,6 +9,7 @@ AI agent for ClickHouse database analysis via MCP (Model Context Protocol).
 - Query ClickHouse databases using AI models
 - Structured output: analysis, SQL used, confidence
 - Easy connection management (predefined or custom)
+- Conversational context and message history with robust summarization/pruning
 - No CLI or environment setup required
 
 ### Supported Providers
@@ -26,22 +27,21 @@ AI agent for ClickHouse database analysis via MCP (Model Context Protocol).
 - Run queries using the `ClickHouseAgent`.
 - Multi-model/provider support is automatic—just set the API key for each provider.
 
-See the `examples/` directory for full, canonical usage scripts:
-
-- `examples/example_minimal.py`: Minimal query
-- `examples/example_switch_provider.py`: Switch provider/model at runtime
-- `examples/example_error_handling.py`: Error handling for missing API key
-- `examples/example_multi_query.py`: Multiple queries in a loop
-
-All features and usage patterns are covered in these scripts.
+See the `examples/` directory for full, canonical usage scripts
 
 ## Output
 
-Returns a `ClickHouseOutput` object:
+Each call to `ClickHouseAgent.run()` returns a `RunResult` object with the following fields:
 
-- `analysis`: Natural language results with SQL queries
-- `sql_used`: SQL query that was executed
-- `confidence`: Confidence level (1-10)
+- `messages`: The full (pruned) message history after the run (for conversational context).
+- `new_messages`: Only the new messages generated in the latest turn.
+- `last_message`: The last message in the conversation (usually the latest assistant response).
+- `usage`: Token and usage statistics for the run.
+- `analysis`: Natural language results with SQL queries (from the model output).
+- `sql_used`: The SQL query that was executed.
+- `confidence`: Confidence level (1-10) for the analysis.
+
+This structure allows you to maintain conversational context, track usage, and access both the structured and conversational outputs of each query.
 
 ## Requirements
 
@@ -65,11 +65,11 @@ All dependencies are handled by `pyproject.toml`.
 - [x] **Type Safety**: Full type annotations and mypy compliance
 - [x] **Code Quality**: Black formatting, isort, flake8 linting
 - [x] **Multi-Model Support**: Runtime selection of provider/model and API key management
+- [x] **Message History**: Robust message_history parameter for conversational context with summarization and pruning
+- [x] **Conversational Agent**: Persistent memory and context across queries
 
 ### 🚧 Planned / In Progress
 
-- [ ] **Message History**: Add message_history parameter for conversational context
-- [ ] **Conversational Agent**: Persistent memory across queries
 - [ ] **Improved Error Handling**: More robust error and exception management
 - [ ] **Advanced Output Formatting**: Customizable output for downstream applications
 
