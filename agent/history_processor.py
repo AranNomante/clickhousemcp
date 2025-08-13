@@ -12,6 +12,8 @@ async def history_processor(
     total_tokens: int,
     messages: list[ModelMessage],
 ) -> list[ModelMessage]:
+    if not messages:
+        return []
 
     from .config import summarize_config
 
