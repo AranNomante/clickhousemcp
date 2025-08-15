@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clickhouse-mcp-agent"
-version = "0.5.0b0"
+version = "0.5.0b1"
 description = "AI agent for ClickHouse database analysis via MCP"
 readme = "README.md"
 license = {text = "MIT"}
@@ -53,8 +53,12 @@ Repository = "https://github.com/AranNomante/clickhousemcp"
 Issues = "https://github.com/AranNomante/clickhousemcp/issues"
 
 
+
 [tool.setuptools.packages.find]
 include = ["agent*"]
+
+[tool.setuptools.package-data]
+"agent" = ["py.typed"]
 
 [tool.black]
 line-length = 120
