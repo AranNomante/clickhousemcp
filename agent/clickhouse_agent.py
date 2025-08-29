@@ -5,15 +5,17 @@ with ClickHouse via MCP server for database queries.
 """
 
 import os
+import asyncio
 
 from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Optional, Any, Dict, List
 from enum import Enum
 
 from pydantic_ai import Agent
 from pydantic_ai.mcp import MCPServerStdio, RunContext, CallToolFunc
 from pydantic_ai.messages import ModelMessage
-from pydantic_ai.usage import Usage
+from pydantic_ai.usage import RunUsage
+
 
 import logging
 
@@ -40,13 +42,7 @@ class ClickHouseDependencies:
     user: str
     password: str = ""
     secure: str = "true"
-    # Optional per-request or default allow-list for tables. If provided at
-    # Optional per-request allow-list for tables. This value is intended to
-    # be provided per-call (via `query(allowed_tables=...)`) and will not be
-    # merged with any agent-level defaults. Keep semantics simple and
-    # explicit per-request.
     allowed_tables: Optional[list[str]] = None
-    allowed_dbs: Optional[list[str]] = None
 
 
 @dataclass
@@ -59,9 +55,6 @@ class ClickHouseOutput:
     """Confidence level of the analysis (1-10)."""
     confidence: int
 
-    """SQL query used to generate the result."""
-    sql_used: Optional[str] = None
-
 
 @dataclass
 class RunResult:
@@ -73,16 +66,13 @@ class RunResult:
     """New messages added during the query execution."""
     new_messages: list[ModelMessage]
 
-    usage: Usage
+    usage: RunUsage
 
     """Analysis of the query result."""
     analysis: str
 
     """Confidence level of the analysis (1-10)."""
     confidence: int
-
-    """SQL query used to generate the result."""
-    sql_used: Optional[str] = None
 
     """Last message in the conversation, useful for context."""
     last_message: Optional[ModelMessage] = None
@@ -96,13 +86,13 @@ class ClickHouseAgent:
     and analysis, leveraging AI models for enhanced insights.
     """
 
-    server: MCPServerStdio
-    env: dict
-    agent: Agent
+    server: MCPServerStdio | None
+    env: Dict[str, str]
+    agent: Agent[ClickHouseDependencies, ClickHouseOutput] | None
 
     def __init__(
         self,
-        instructions: str = "You are a ClickHouse database analyst. Use the available MCP tools to query ClickHouse databases and provide insightful analysis. Always mention the SQL queries you used in your response. Be precise and include relevant data to support your analysis.",
+        instructions: str = "You are a ClickHouse database analyst. Use the available MCP tools to query ClickHouse databases and provide insightful analysis. Be precise and include relevant data to support your analysis. Don't get too technical keep it seo friendly. When structuring analytical queries for the mcp server always mind the complexity and performance. Provide actionable insights and recommendations based on the data. MUST!!! MAKE SURE NOT TO OVERLOAD THE SERVER WITH COMPLEX QUERIES. ALWAYS OPTIMIZE FOR PERFORMANCE AND COST. ALWAYS KEEP IT MINIMAL BUT MEANINGFUL NOT A LOT OF QUERIES TO THE SERVER.",
         retries: int = 3,
         output_retries: int = 3,
     ):
@@ -113,7 +103,11 @@ class ClickHouseAgent:
         api_key_attr = f"{selected_provider.upper()}_API_KEY"
         model_api_key = getattr(config.model_api, api_key_attr, None)
 
-        os.environ[api_key_attr] = model_api_key
+        # Only set the environment variable if we actually have a key.
+        # Avoid overwriting an existing env var and skip None values to
+        # keep default instantiation working in tests and minimal setups.
+        if model_api_key:
+            os.environ.setdefault(api_key_attr, model_api_key)
 
         # Set up environment for MCP server
         self.env = {
@@ -123,20 +117,39 @@ class ClickHouseAgent:
             "CLICKHOUSE_PASSWORD": config.clickhouse_password,
             "CLICKHOUSE_SECURE": config.clickhouse_secure,
         }
+        # Defer heavy initialization (model provider may require API keys).
+        self.server = None
+        self.agent = None
+        self._instructions = instructions
+        self._retries = retries
+        self._output_retries = output_retries
 
-        self.server = MCPServerStdio("mcp-clickhouse", args=[], env=self.env, process_tool_call=self.process_tool_call)
+    def _ensure_agent(self) -> None:
+        """Lazy-initialize MCP server and Agent to avoid requiring API keys at import/instantiation time."""
+        if self.agent is not None and self.server is not None:
+            return
 
-        self.agent = Agent(
+        from .config import config
+
+        # Initialize MCP server and agent when first needed
+        self.server = MCPServerStdio(
+            "mcp-clickhouse",
+            args=[],
+            env=self.env,
+            process_tool_call=self.process_tool_call,
+        )
+
+        self.agent = Agent[ClickHouseDependencies, ClickHouseOutput](
             model=config.ai_model,
             deps_type=ClickHouseDependencies,
             output_type=ClickHouseOutput,
             toolsets=[self.server],
-            instructions=instructions,
-            retries=retries,
-            output_retries=output_retries,
+            instructions=self._instructions,
+            retries=self._retries,
+            output_retries=self._output_retries,
         )
 
-    async def useHistoryProcessor(self, message_history: Optional[list[ModelMessage]] = None):
+    async def useHistoryProcessor(self, message_history: Optional[List[ModelMessage]] = None) -> List[ModelMessage]:
         from .config import config
         from .history_processor import history_processor
 
@@ -146,9 +159,11 @@ class ClickHouseAgent:
             if hasattr(m, "usage"):
                 total_tokens += m.usage.total_tokens
 
-        return await history_processor(total_tokens, message_history, config.model_provider)
+        # Ensure we always pass a concrete list to the processor
+        concrete_history: List[ModelMessage] = message_history or []
+        return await history_processor(total_tokens, concrete_history, config.model_provider)
 
-    def getClickhouseParams(self):
+    def getClickhouseParams(self) -> Dict[str, str]:
         return dict(
             host=self.env["CLICKHOUSE_HOST"],
             port=self.env["CLICKHOUSE_PORT"],
@@ -157,36 +172,47 @@ class ClickHouseAgent:
             secure=self.env["CLICKHOUSE_SECURE"],
         )
 
-    def getClickhouseDeps(self, allowed_tables: Optional[list[str]] = None, allowed_dbs: Optional[list[str]] = None):
+    def getClickhouseDeps(self, allowed_tables: Optional[List[str]] = None) -> ClickHouseDependencies:
         """Build ClickHouseDependencies and set per-call allowed_tables.
 
         This implementation intentionally keeps `allowed_tables` per-call
         only: if provided here we assign it directly to the returned deps
         object without attempting to merge with any agent-level default.
         """
-        params = self.getClickhouseParams()
-        deps = ClickHouseDependencies(**params)
+        # Build explicitly so mypy can validate field names/types
+        deps = ClickHouseDependencies(
+            host=self.env["CLICKHOUSE_HOST"],
+            port=self.env["CLICKHOUSE_PORT"],
+            user=self.env["CLICKHOUSE_USER"],
+            password=self.env["CLICKHOUSE_PASSWORD"],
+            secure=self.env["CLICKHOUSE_SECURE"],
+        )
 
         # Assign per-call allow-list directly (no merge/dedupe).
         if allowed_tables is not None:
             deps.allowed_tables = allowed_tables
 
-        if allowed_dbs is not None:
-            deps.allowed_dbs = allowed_dbs
-
         return deps
 
     async def run(
         self,
-        allowed_tables: Optional[list[str]] = None,
-        allowed_dbs: Optional[list[str]] = None,
-        message_history: Optional[list[ModelMessage]] = None,
+        allowed_tables: Optional[List[str]] = None,
+        message_history: Optional[List[ModelMessage]] = None,
         query: str = "SHOW_TABLES",
-    ):
+    ) -> RunResult:
         try:
-            deps = self.getClickhouseDeps(allowed_tables=allowed_tables, allowed_dbs=allowed_dbs)
-            async with self.agent:
-                result = await self.agent.run(query, deps=deps, message_history=message_history)
+            # Ensure lazy init occurs here to avoid API key requirements during simple instantiation.
+            self._ensure_agent()
+            assert self.agent is not None
+            message_history = await self.useHistoryProcessor(message_history)
+            deps = self.getClickhouseDeps(allowed_tables=allowed_tables)
+            agent = self.agent
+            async with agent:
+                result = await agent.run(
+                    query,
+                    deps=deps,
+                    message_history=message_history,
+                )
                 all_messages = result.all_messages()
                 new_messages = result.new_messages()
                 usage = result.usage()
@@ -197,7 +223,6 @@ class ClickHouseAgent:
                 new_messages=new_messages,
                 usage=usage,
                 analysis=output.analysis,
-                sql_used=output.sql_used,
                 confidence=output.confidence,
             )
         except Exception as e:
@@ -213,30 +238,61 @@ class ClickHouseAgent:
         ctx: RunContext[Any],
         call_tool_func: CallToolFunc,
         tool_name: str,
-        tool_args: dict[str, Any],
+        tool_args: Dict[str, Any],
     ) -> Any:
+        allowed_tables = ctx.deps.allowed_tables if ctx.deps else None
 
-        logger.debug("Process_tool_called with tool_name=%s, tool_args=%s, ctx=%s", tool_name, tool_args, ctx)
+        # if allowed tables have length 0 we return empty list
+        if allowed_tables is not None and len(allowed_tables) == 0:
+            return []
 
-        # Inject allow-list access restrictions if provided on deps.
-        try:
-            deps = getattr(ctx, "deps", None)
-            if deps is not None:
-                allowed_tables = getattr(deps, "allowed_tables", None)
-                allowed_dbs = getattr(deps, "allowed_dbs", None)
-                # Only add fields if caller supplied them per request
-                if allowed_tables is not None and "allowed_tables" not in tool_args:
-                    tool_args = {**tool_args, "allowed_tables": allowed_tables}
-                if allowed_dbs is not None and "allowed_dbs" not in tool_args:
-                    tool_args = {**tool_args, "allowed_dbs": allowed_dbs}
-        except Exception as inj_err:
-            logger.debug("Allow-list injection skipped due to error: %s", inj_err)
+        if tool_name == "list_tables":
+            db = tool_args.get("database")
+            if not isinstance(db, str):
+                return []
+            if not isinstance(allowed_tables, list) or not all(isinstance(x, str) for x in allowed_tables):
+                # Fallback to single call if allow-list is not a proper list of strings
+                return await call_tool_func(tool_name, tool_args, None)
+            return await self.list_tables_multi(
+                call_tool_func,
+                database=db,
+                allowed_tables=allowed_tables,
+            )
+
+        logger.info("Tool name: %s", tool_name)
+        logger.info("tool_args: %s", tool_args)
 
         result = await call_tool_func(tool_name, tool_args, None)
 
-        logger.debug("ProcessToolCallback result: %s", result)
+        logger.info("ProcessToolCallback result: %s", result)
         return result
 
-    def tool_name_hook(self, name, allowed_tables: Optional[list[str]] = None, allowed_dbs: Optional[list[str]] = None):
-        # TODO: to be implemented
-        return
+    async def list_tables_multi(
+        self,
+        call_tool_func: CallToolFunc,
+        database: str,
+        allowed_tables: List[str],
+    ) -> List[Dict[str, Any]]:
+        # Build tasks: one call per allowed table/pattern
+        tasks = [call_tool_func("list_tables", {"database": database, "like": pat}, None) for pat in allowed_tables]
+
+        # Run all concurrently
+        results = await asyncio.gather(*tasks, return_exceptions=False)
+
+        # Merge + de-dupe by (db, name)
+        seen: set[tuple[Any, Any]] = set()
+        merged: List[Dict[str, Any]] = []
+        for batch in results:
+            # Only handle list batches
+            if not isinstance(batch, list):
+                continue
+            for r in batch:
+                if not isinstance(r, dict):
+                    continue
+                key = (r.get("database"), r.get("name"))
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(r)
+
+        return merged
