@@ -1,16 +1,23 @@
 # ClickHouse MCP Agent
 
-![version](https://img.shields.io/badge/version-0.5.0b1-blue)
+![version](https://img.shields.io/badge/version-0.6.0b0-yellow)
 
 AI agent for ClickHouse database analysis via MCP (Model Context Protocol).
+
+This release reflects a simplified architecture: a single MCP server
+(`mcp-clickhouse`) driven by a single agent instance. Access restriction is
+performed via explicit allow-lists you pass per call (databases/tables), rather
+than managing multiple keys or fan-out across multiple agents.
 
 ## Features
 
 - Query ClickHouse databases using AI models
 - Structured output: analysis, SQL used, confidence
 - Easy connection management (predefined or custom)
-- Conversational context and message history with robust summarization/pruning
-- No CLI or environment setup required
+- Conversational context with message-history pruning/summarization
+- No CLI or external .env required; configure at runtime
+- Single MCP server, single agent lifecycle (no multi-key fan-out)
+- Access restriction via per-call allow-lists (`allowed_dbs`, `allowed_tables`)
 
 ### Supported Providers
 
@@ -21,59 +28,82 @@ AI agent for ClickHouse database analysis via MCP (Model Context Protocol).
 - Mistral
 - Cohere
 
-## Usage
+## Quickstart
 
-- Configure your model, API key, and connection using the runtime config API.
-- Run queries using the `ClickHouseAgent`.
-- Multi-model/provider support is automatic—just set the API key for each provider.
+- Set model/provider and API key using the runtime config
+- Instantiate `ClickHouseAgent` and call `run()`
 
-See the `examples/` directory for full, canonical usage scripts
+Example mirrors `examples/example_minimal.py`:
+
+```py
+import asyncio
+from agent.clickhouse_agent import ClickHouseAgent
+from agent.config import config
+
+config.set_log_level("DEBUG")
+config.set_ai_model("gemini-2.0-flash")
+config.set_model_api_key("google", "your_api_key_here")
+
+async def main():
+    agent = ClickHouseAgent()
+    # Single MCP server (mcp-clickhouse). Limit scope via allow-lists (recommended)
+    result = await agent.run(
+        allowed_tables=["top_repos_mv"],
+        allowed_dbs=["github"],
+        query="SHOW_TABLES",
+    )
+    print("Analysis:", result.analysis)
+    print("SQL Used:", result.sql_used)
+    print("Confidence:", result.confidence)
+
+asyncio.run(main())
+```
+
+- For multi-turn conversations, pass `message_history` between calls. If token usage grows, the agent can summarize history (see below).
+
+## Message History & Summarization
+
+- History processing is handled in `agent/history_processor.py`.
+- Summarization behavior is controlled via `agent.config.summarize_config` (model, provider, token limit).
+- When token usage exceeds the configured limit, older messages are summarized into a compact form.
 
 ## Output
 
-Each call to `ClickHouseAgent.run()` returns a `RunResult` object with the following fields:
+Each call to `ClickHouseAgent.run()` returns a `RunResult` with:
 
-- `messages`: The full (pruned) message history after the run (for conversational context).
-- `new_messages`: Only the new messages generated in the latest turn.
-- `last_message`: The last message in the conversation (usually the latest assistant response).
-- `usage`: Token and usage statistics for the run.
-- `analysis`: Natural language results with SQL queries (from the model output).
-- `sql_used`: The SQL query that was executed.
-- `confidence`: Confidence level (1-10) for the analysis.
-
-This structure allows you to maintain conversational context, track usage, and access both the structured and conversational outputs of each query.
+- `messages`: Full (possibly pruned/summarized) message history.
+- `new_messages`: Only messages created in the latest turn.
+- `last_message`: The last message in the conversation.
+- `usage`: Token/usage statistics for the run.
+- `analysis`: Natural-language result text from the model.
+- `sql_used`: SQL used (if applicable) from the model output.
+- `confidence`: Confidence level (1-10).
 
 ## Requirements
 
 - Python 3.10+
-- AI API key for your chosen provider (OpenAI, Anthropic, Google/Gemini, Groq, Mistral, Cohere)
+- AI API key for your provider (OpenAI, Anthropic, Google/Gemini, Groq, Mistral, Cohere)
 
-All dependencies are handled by `pyproject.toml`.
+All dependencies are managed via `pyproject.toml`.
 
 ## Roadmap
 
-### ✅ Completed Features
+### ✅ Completed
 
-- [x] **MCP Integration**: PydanticAI + ClickHouse MCP server integration
-- [x] **Query Execution**: SQL query generation and execution via MCP
-- [x] **Schema Inspection**: Database, table, and column exploration
-- [x] **Connection Management**: Multiple connection configurations (playground, custom)
-- [x] **RBAC Support**: Per-query user credentials via config
-- [x] **Dynamic Connections**: Runtime connection configuration, no environment dependencies
-- [x] **Direct API Key Passing**: Pass AI API keys directly to agent (model_api_key)
-- [x] **Structured Output**: ClickHouseOutput with analysis, SQL, and confidence
-- [x] **Type Safety**: Full type annotations and mypy compliance
-- [x] **Code Quality**: Black formatting, isort, flake8 linting
-- [x] **Multi-Model Support**: Runtime selection of provider/model and API key management
-- [x] **Message History**: Robust message_history parameter for conversational context with summarization and pruning
-- [x] **Conversational Agent**: Persistent memory and context across queries
+- MCP integration via `pydantic_ai.mcp.MCPServerStdio`
+- SQL generation/execution via MCP tools
+- Schema inspection (databases/tables/columns)
+- Config-driven connections (playground/local/custom)
+- Access restriction via per-call allow-lists (`allowed_dbs`/`allowed_tables`)
+- Runtime provider/model selection and API key management
+- Structured outputs (`ClickHouseOutput`) and `RunResult`
+- Message history pruning/summarization
+- Type annotations and basic linting
 
-### 🚧 Planned / In Progress
+### 🚧 Planned
 
-- [ ] **Improved Error Handling**: More robust error and exception management
-- [ ] **Advanced Output Formatting**: Customizable output for downstream applications
-
----
+- Improved error handling and diagnostics
+- Advanced output formatting for downstream apps
 
 ## Contributing
 

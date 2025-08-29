@@ -11,11 +11,15 @@ from pydantic_ai.messages import ModelMessage
 async def history_processor(
     total_tokens: int,
     messages: list[ModelMessage],
+    selected_provider: str
 ) -> list[ModelMessage]:
     if not messages:
         return []
 
     from .config import summarize_config
+
+    if not summarize_config.ai_model or not summarize_config.token_limit or not selected_provider == summarize_config.model_provider:
+        return messages
 
     token_limit = summarize_config.token_limit
 
