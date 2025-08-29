@@ -216,7 +216,7 @@ class ClickHouseAgent:
         tool_args: dict[str, Any],
     ) -> Any:
 
-        logging.debug("Process_tool_called with tool_name=%s, tool_args=%s, ctx=%s", tool_name, tool_args, ctx)
+        logger.debug("Process_tool_called with tool_name=%s, tool_args=%s, ctx=%s", tool_name, tool_args, ctx)
 
         # Inject allow-list access restrictions if provided on deps.
         try:
@@ -230,11 +230,11 @@ class ClickHouseAgent:
                 if allowed_dbs is not None and "allowed_dbs" not in tool_args:
                     tool_args = {**tool_args, "allowed_dbs": allowed_dbs}
         except Exception as inj_err:
-            logging.debug("Allow-list injection skipped due to error: %s", inj_err)
+            logger.debug("Allow-list injection skipped due to error: %s", inj_err)
 
         result = await call_tool_func(tool_name, tool_args, None)
 
-        logging.debug("ProcessToolCallback result: %s", result)
+        logger.debug("ProcessToolCallback result: %s", result)
         return result
 
     def tool_name_hook(self, name, allowed_tables: Optional[list[str]] = None, allowed_dbs: Optional[list[str]] = None):
