@@ -4,21 +4,32 @@ It uses the RunContext to access usage statistics and filters messages according
 If message_history is set and not empty, a new system prompt is not generated — we assume the existing message history includes a system prompt.
 """
 
+import logging
+
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage
 
 
+logger = logging.getLogger(__name__)
+
+
 async def history_processor(
-    total_tokens: int,
-    messages: list[ModelMessage],
-    selected_provider: str
+    total_tokens: int, messages: list[ModelMessage], selected_provider: str
 ) -> list[ModelMessage]:
     if not messages:
         return []
 
     from .config import summarize_config
 
-    if not summarize_config.ai_model or not summarize_config.token_limit or not selected_provider == summarize_config.model_provider:
+    if (
+        not summarize_config.ai_model
+        or not summarize_config.token_limit
+        or not selected_provider == summarize_config.model_provider
+    ):
+        logger.info(
+            "Skipping history processing: model or token limit not set, or provider mismatch.",
+            extra={"selected_provider": selected_provider, "config_model_provider": summarize_config.model_provider},
+        )
         return messages
 
     token_limit = summarize_config.token_limit

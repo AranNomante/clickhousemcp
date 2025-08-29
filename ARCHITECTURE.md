@@ -40,7 +40,7 @@ This document describes the architecture of the ClickHouse MCP Agent library.
 
 ## Version
 
-- Current library version: `0.6.0b0` (from `pyproject.toml`).
+- Current library version: `0.7.0` (from `pyproject.toml`).
 
 ## License
 

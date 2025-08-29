@@ -98,14 +98,8 @@ async def test_clickhouse_output_structure() -> None:
     from agent.clickhouse_agent import ClickHouseOutput
 
     # Test all fields and types
-    output = ClickHouseOutput(analysis="Test analysis", sql_used="SELECT 1", confidence=8)
+    output = ClickHouseOutput(analysis="Test analysis", confidence=8)
     assert isinstance(output.analysis, str)
-    assert isinstance(output.sql_used, str)
     assert isinstance(output.confidence, int)
     assert output.analysis == "Test analysis"
-    assert output.sql_used == "SELECT 1"
     assert output.confidence == 8
-
-    # Edge case: explicitly omit the optional sql_used parameter
-    output2 = ClickHouseOutput(analysis="A", confidence=1)  # sql_used is not passed
-    assert output2.sql_used is None  # Verify default value is None
