@@ -59,13 +59,43 @@ class EnvConfig:
         logger.info(f"Model provider set to: {provider}")
 
     def set_log_level(self, level: str) -> None:
-        self.log_level = level
-        # Set log level for loggers within the application's namespace
+        # Normalize and validate the provided level name.
+        level_name = (level or "").upper()
+        numeric = getattr(logging, level_name, None)
+        if numeric is None:
+            logger.warning("Unknown log level '%s', defaulting to INFO", level)
+            numeric = logging.INFO
+            level_name = "INFO"
+
+        self.log_level = level_name
+
+        # If no handlers are configured on the root logger, create a console
+        # handler so logs are visible for small apps and examples. Prefer
+        # RichHandler (if available) for colored, pretty output.
+        if not logging.root.handlers:
+            try:
+                # Optional dependency: rich. Use if installed for nicer output.
+                from rich.logging import RichHandler
+
+                handler = RichHandler(markup=True)
+                logging.basicConfig(level=numeric, format="%(message)s %(args)s", handlers=[handler])
+            except Exception:
+                logging.basicConfig(
+                    level=numeric,
+                    format="%(asctime)s %(levelname)s %(name)s - %(message)s %(args)s",
+                )
+
+        # Apply level to package loggers (names that start with the top-level
+        # package namespace). Also set the root logger level so propagation
+        # behaves consistently.
         namespace = __name__.split(".")[0]  # Get the top-level package name
         for name in logging.root.manager.loggerDict:
             if name.startswith(namespace):
-                logging.getLogger(name).setLevel(level)
-        logger.info(f"Log level set to: {level} (applied to namespace '{namespace}')")
+                logging.getLogger(name).setLevel(numeric)
+
+        logging.getLogger().setLevel(numeric)
+
+        logger.info(f"Log level set to: {level_name} (applied to namespace '{namespace}')")
 
     def set_debug(self, debug: bool) -> None:
         self.debug = debug
