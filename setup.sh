@@ -41,4 +41,5 @@ echo -e "${GREEN}✅ Setup complete!${NC}"
 echo
 echo -e "${BLUE}📝 Next steps:${NC}"
 echo -e "  1. Configure .env: ${YELLOW}cp .env.example .env${NC} (add your GOOGLE_API_KEY)"
-echo -e "  2. Run project: ${YELLOW}./run.sh${NC}"
+echo -e "  2. Activate: ${YELLOW}source .venv/bin/activate${NC}"
+echo -e "  3. Test: ${YELLOW}python examples/example_minimal.py${NC}"
