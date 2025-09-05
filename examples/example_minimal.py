@@ -25,7 +25,7 @@ async def run_minimal() -> None:
     agent = ClickHouseAgent()
     result = await agent.run(
         allowed_tables=["example2", "example1"],
-        query="can you please give me some insights on the recent data and my console search and ga4 data corelation? for toolswarehouse.in",
+        query="can you please give me some insights on the recent data?",
     )
     print(result.analysis)
 

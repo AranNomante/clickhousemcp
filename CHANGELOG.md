@@ -1,20 +1,20 @@
 
 # Changelog
 
-## [0.7.0] - 2025-08-29
+## [0.8.0] - 2025-09-05
 
-### Fixes
+### Added
 
-- Make model API key handling safe: do not set env vars when key is `None` and avoid overwriting existing vars.
-- Lazily initialize MCP server and `Agent` to allow `ClickHouseAgent()` instantiation without provider credentials (unblocks tests and minimal setups).
-
-### Internal
-
-- Preserve per-call `allowed_tables` behavior in deps construction; no implicit merging.
+- New `run_stream()` method for streaming results (yields `RunResult` objects).
 
 ### Docs
 
-- Update version badge and architecture notes to 0.7.0.
+- Refine setup guidance and messaging in `setup.sh`.
+- General documentation touch-ups.
+
+### Chore
+
+- Remove legacy `run.sh` wrapper; use examples or direct execution.
 
 ## [prior]
 

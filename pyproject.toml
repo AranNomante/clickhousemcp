@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clickhouse-mcp-agent"
-version = "0.7.0"
+version = "0.8.0"
 description = "AI agent for ClickHouse database analysis via MCP"
 readme = "README.md"
 license = {text = "MIT"}
