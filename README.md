@@ -1,6 +1,6 @@
 # ClickHouse MCP Agent
 
-![version](https://img.shields.io/badge/version-0.7.0-blue)
+![version](https://img.shields.io/badge/version-0.8.0-blue)
 
 AI agent for ClickHouse database analysis via MCP (Model Context Protocol).
 
@@ -17,7 +17,8 @@ than managing multiple keys or fan-out across multiple agents.
 - Conversational context with message-history pruning/summarization
 - No CLI or external .env required; configure at runtime
 - Single MCP server, single agent lifecycle (no multi-key fan-out)
-- Access restriction via per-call allow-lists (`allowed_dbs`, `allowed_tables`)
+- Access restriction via per-call allow-lists (`allowed_tables`)
+- Streamable results
 
 ### Supported Providers
 
@@ -31,7 +32,7 @@ than managing multiple keys or fan-out across multiple agents.
 ## Quickstart
 
 - Set model/provider and API key using the runtime config
-- Instantiate `ClickHouseAgent` and call `run()`
+- Instantiate `ClickHouseAgent` and call `run()` or `run_stream()`
 
 Example mirrors `examples/example_minimal.py`:
 
@@ -49,7 +50,6 @@ async def main():
     # Single MCP server (mcp-clickhouse). Limit scope via allow-lists (recommended)
     result = await agent.run(
         allowed_tables=["top_repos_mv"],
-        allowed_dbs=["github"],
         query="SHOW_TABLES",
     )
     print("Analysis:", result.analysis)
@@ -94,11 +94,12 @@ All dependencies are managed via `pyproject.toml`.
 - SQL generation/execution via MCP tools
 - Schema inspection (databases/tables/columns)
 - Config-driven connections (playground/local/custom)
-- Access restriction via per-call allow-lists (`allowed_dbs`/`allowed_tables`)
+- Access restriction via per-call allow-lists (`allowed_tables`)
 - Runtime provider/model selection and API key management
 - Structured outputs (`ClickHouseOutput`) and `RunResult`
 - Message history pruning/summarization
 - Type annotations and basic linting
+- Streaming results via `run_stream()`
 
 ### 🚧 Planned
 

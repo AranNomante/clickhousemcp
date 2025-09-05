@@ -19,7 +19,7 @@ This document describes the architecture of the ClickHouse MCP Agent library.
    - Creates a single `pydantic_ai.Agent` with `deps_type=ClickHouseDependencies`, `output_type=ClickHouseOutput`, and `toolsets=[server]`.
 3. Call `agent.run(query=..., allowed_tables=..., allowed_dbs=..., message_history=...)`.
 4. The agent invokes MCP tools to inspect schema and run SQL as needed; results flow back into a `ClickHouseOutput`.
-5. A `RunResult` is returned with `analysis`, `sql_used`, `confidence`, `usage`, and updated `messages/new_messages/last_message`.
+5. A `RunResult` is returned with `analysis`, `sql_used`, `confidence`, `usage`, and updated `messages/new_messages/last_message` (result is also streamable).
 6. If history grows, `history_processor` may summarize earlier messages using the summarizer model specified in `summarize_config`.
 
 ## Patterns & Conventions
@@ -40,7 +40,7 @@ This document describes the architecture of the ClickHouse MCP Agent library.
 
 ## Version
 
-- Current library version: `0.7.0` (from `pyproject.toml`).
+- Current library version: `0.8.0` (from `pyproject.toml`).
 
 ## License
 

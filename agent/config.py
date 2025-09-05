@@ -76,8 +76,9 @@ class EnvConfig:
             try:
                 # Optional dependency: rich. Use if installed for nicer output.
                 from rich.logging import RichHandler
+                from rich.highlighter import JSONHighlighter
 
-                handler = RichHandler(markup=True)
+                handler = RichHandler(markup=True, highlighter=JSONHighlighter())
                 logging.basicConfig(level=numeric, format="%(message)s %(args)s", handlers=[handler])
             except Exception:
                 logging.basicConfig(

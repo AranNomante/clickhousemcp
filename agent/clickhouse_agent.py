@@ -8,7 +8,7 @@ import os
 import asyncio
 
 from dataclasses import dataclass
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict, List, AsyncIterator
 from enum import Enum
 
 from pydantic_ai import Agent
@@ -18,6 +18,8 @@ from pydantic_ai.usage import RunUsage
 
 
 import logging
+
+from agent.default_instruction import DefaultInstructions
 
 
 # Enum for supported model providers
@@ -92,7 +94,7 @@ class ClickHouseAgent:
 
     def __init__(
         self,
-        instructions: str = "You are a ClickHouse database analyst. Use the available MCP tools to query ClickHouse databases and provide insightful analysis. Be precise and include relevant data to support your analysis. Don't get too technical keep it seo friendly. When structuring analytical queries for the mcp server always mind the complexity and performance. Provide actionable insights and recommendations based on the data. MUST!!! MAKE SURE NOT TO OVERLOAD THE SERVER WITH COMPLEX QUERIES. ALWAYS OPTIMIZE FOR PERFORMANCE AND COST. ALWAYS KEEP IT MINIMAL BUT MEANINGFUL NOT A LOT OF QUERIES TO THE SERVER.",
+        instructions: Optional[str] = None,
         retries: int = 3,
         output_retries: int = 3,
     ):
@@ -138,6 +140,9 @@ class ClickHouseAgent:
             env=self.env,
             process_tool_call=self.process_tool_call,
         )
+
+        if self._instructions is None:
+            self._instructions = DefaultInstructions().instructions
 
         self.agent = Agent[ClickHouseDependencies, ClickHouseOutput](
             model=config.ai_model,
@@ -233,6 +238,38 @@ class ClickHouseAgent:
                 )
             raise Exception("MCP agent execution failed.")
 
+    async def run_stream(
+        self,
+        allowed_tables: Optional[List[str]] = None,
+        message_history: Optional[List[ModelMessage]] = None,
+        query: str = "SHOW_TABLES",
+    ) -> AsyncIterator[Any]:
+        try:
+            # Ensure lazy init occurs here to avoid API key requirements during simple instantiation.
+            self._ensure_agent()
+
+            assert self.agent is not None
+
+            message_history = await self.useHistoryProcessor(message_history)
+            deps = self.getClickhouseDeps(allowed_tables=allowed_tables)
+            agent = self.agent
+
+            async with agent.iter(
+                query,
+                deps=deps,
+                message_history=message_history,
+            ) as agent_run:
+                async for node in agent_run:
+                    yield node
+
+        except Exception as e:
+            logger.error(f"MCP agent execution failed: {e}")
+            if "TaskGroup" in str(e):
+                raise Exception(
+                    "MCP server connection failed. This might be due to network issues or UV environment conflicts."
+                )
+            raise Exception("MCP agent execution failed.")
+
     async def process_tool_call(
         self,
         ctx: RunContext[Any],
@@ -259,12 +296,8 @@ class ClickHouseAgent:
                 allowed_tables=allowed_tables,
             )
 
-        logger.info("Tool name: %s", tool_name)
-        logger.info("tool_args: %s", tool_args)
-
         result = await call_tool_func(tool_name, tool_args, None)
 
-        logger.info("ProcessToolCallback result: %s", result)
         return result
 
     async def list_tables_multi(
