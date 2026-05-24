@@ -1,14 +1,13 @@
-"""This module processes the message history for the agent, filtering messages based on the current context.
-It uses the RunContext to access usage statistics and filters messages accordingly.
+"""Processes message history for the agent, filtering messages based on token usage.
 
-If message_history is set and not empty, a new system prompt is not generated — we assume the existing message history includes a system prompt.
+If message_history is set and not empty, a new system prompt is not generated —
+we assume the existing message history includes a system prompt.
 """
 
 import logging
 
 from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage
-
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +45,10 @@ async def summarize_old_messages(messages: list[ModelMessage]) -> list[ModelMess
 
     summarize_agent = Agent(
         model=summarize_config.ai_model,
-        instructions="Summarize the entire conversation so far in as few tokens as possible. Don't exceed a paragraph or 50 words",
+        instructions=(
+            "Summarize the entire conversation so far in as few tokens as possible. "
+            "Do not exceed a paragraph or 50 words."
+        ),
     )
 
     # Only pass conversational messages to the summarizer

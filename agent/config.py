@@ -1,6 +1,5 @@
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -9,12 +8,12 @@ logger = logging.getLogger(__name__)
 class ModelAPIConfig:
     """Configuration for all supported model API keys."""
 
-    OPENAI_API_KEY: Optional[str] = None
-    ANTHROPIC_API_KEY: Optional[str] = None
-    GOOGLE_API_KEY: Optional[str] = None
-    GROQ_API_KEY: Optional[str] = None
-    MISTRAL_API_KEY: Optional[str] = None
-    CO_API_KEY: Optional[str] = None
+    OPENAI_API_KEY: str | None = None
+    ANTHROPIC_API_KEY: str | None = None
+    GOOGLE_API_KEY: str | None = None
+    GROQ_API_KEY: str | None = None
+    MISTRAL_API_KEY: str | None = None
+    CO_API_KEY: str | None = None
 
     def set_api_key(self, provider: str, key: str) -> None:
         provider_map = {
@@ -75,8 +74,8 @@ class EnvConfig:
         if not logging.root.handlers:
             try:
                 # Optional dependency: rich. Use if installed for nicer output.
-                from rich.logging import RichHandler
                 from rich.highlighter import JSONHighlighter
+                from rich.logging import RichHandler
 
                 handler = RichHandler(markup=True, highlighter=JSONHighlighter())
                 logging.basicConfig(level=numeric, format="%(message)s %(args)s", handlers=[handler])
@@ -104,11 +103,11 @@ class EnvConfig:
 
     def set_clickhouse(
         self,
-        host: Optional[str] = None,
-        port: Optional[str] = None,
-        user: Optional[str] = None,
-        password: Optional[str] = None,
-        secure: Optional[str] = None,
+        host: str | None = None,
+        port: str | None = None,
+        user: str | None = None,
+        password: str | None = None,
+        secure: str | None = None,
     ) -> None:
         if host is not None:
             self.clickhouse_host = host
@@ -169,13 +168,13 @@ class ClickHouseConnections:
     LOCAL = ClickHouseConfig(name="local", host="localhost", port="9000", user="default", password="", secure="false")
 
     @classmethod
-    def get_config(cls, name: str) -> Optional[ClickHouseConfig]:
+    def get_config(cls, name: str) -> ClickHouseConfig | None:
         """Get a predefined configuration by name."""
         configs = {"playground": cls.PLAYGROUND, "local": cls.LOCAL, "default": ClickHouseConfig.from_defaults()}
         return configs.get(name.lower())
 
     @classmethod
-    def list_configs(cls) -> Dict[str, ClickHouseConfig]:
+    def list_configs(cls) -> dict[str, ClickHouseConfig]:
         """List all available configurations."""
         return {"playground": cls.PLAYGROUND, "local": cls.LOCAL, "default": ClickHouseConfig.from_defaults()}
 
