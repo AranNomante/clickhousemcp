@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel", "uv"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "clickhouse-mcp-agent"
-version = "0.8.0"
+version = "0.9.0"
 description = "AI agent for ClickHouse database analysis via MCP"
 readme = "README.md"
 license = {text = "MIT"}
@@ -13,7 +13,7 @@ authors = [
 ]
 keywords = ["clickhouse", "mcp", "ai", "database", "analysis"]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
@@ -21,6 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Database",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
@@ -29,17 +30,14 @@ dependencies = [
     "pydantic-ai-slim[mcp,google,openai,anthropic,vertexai,groq,mistral,cohere]",
     "mcp-clickhouse",
     "python-dotenv",
-    "uv",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest",
     "pytest-asyncio",
-    "black",
-    "isort",
+    "ruff",
     "mypy",
-    "flake8",
     "types-cachetools"
 ]
 examples = [
@@ -60,13 +58,16 @@ include = ["agent*"]
 [tool.setuptools.package-data]
 "agent" = ["py.typed"]
 
-[tool.black]
+[tool.ruff]
 line-length = 120
-target-version = ['py310']
+target-version = "py310"
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = []
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.mypy]
 python_version = "3.10"

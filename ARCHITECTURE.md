@@ -17,9 +17,9 @@ This document describes the architecture of the ClickHouse MCP Agent library.
    - Reads provider/model from `config` and sets the provider API key into the environment (for the selected provider).
    - Constructs a single `MCPServerStdio("mcp-clickhouse", env=...)` using ClickHouse settings from `config`.
    - Creates a single `pydantic_ai.Agent` with `deps_type=ClickHouseDependencies`, `output_type=ClickHouseOutput`, and `toolsets=[server]`.
-3. Call `agent.run(query=..., allowed_tables=..., allowed_dbs=..., message_history=...)`.
+3. Call `agent.run(query=..., allowed_tables=..., message_history=...)`.
 4. The agent invokes MCP tools to inspect schema and run SQL as needed; results flow back into a `ClickHouseOutput`.
-5. A `RunResult` is returned with `analysis`, `sql_used`, `confidence`, `usage`, and updated `messages/new_messages/last_message` (result is also streamable).
+5. A `RunResult` is returned with `analysis`, `confidence`, `usage`, and updated `messages/new_messages/last_message` (result is also streamable).
 6. If history grows, `history_processor` may summarize earlier messages using the summarizer model specified in `summarize_config`.
 
 ## Patterns & Conventions
@@ -27,7 +27,7 @@ This document describes the architecture of the ClickHouse MCP Agent library.
 - **PydanticAI Agent**: Structured model IO with strongly-typed `deps` and `output`.
 - **MCP Tooling**: ClickHouse operations are performed via a single MCP server toolset.
 - **Runtime Config**: All provider/model/connection settings are configured at runtime (no static `.env` dependency).
-- **Allow-lists**: Per-call `allowed_tables`/`allowed_dbs` constrain scope of access. This is the primary access-restriction mechanism rather than managing multiple API keys or multiple agents.
+- **Allow-lists**: Per-call `allowed_tables` constrains scope of access. This is the primary access-restriction mechanism rather than managing multiple API keys or multiple agents.
 - **History Management**: Pluggable processor summarizes when token usage exceeds `summarize_config.token_limit`.
 - **Type Safety**: Dataclasses and type hints across public interfaces.
 
@@ -38,9 +38,24 @@ This document describes the architecture of the ClickHouse MCP Agent library.
 - Customize summarization by tuning `summarize_config` (model/provider/token limit).
 - Extend output fields by modifying `ClickHouseOutput` and corresponding usage in the agent.
 
+## Local Development Setup
+
+A `docker-compose.yml` at the repo root starts a local ClickHouse instance for running examples without a cloud account:
+
+```
+docker-compose.yml          # ClickHouse service, port 8123 (HTTP), persisted volume
+docker/
+└── init.sql                # Seeds demo.orders + demo.products on first start
+examples/
+├── example_minimal.py      # run() against local Docker, any supported provider
+└── example_stream.py       # run_stream() against local Docker, any supported provider
+```
+
+Connection settings for local Docker: `host=localhost`, `port=8123`, `user=default`, `password=""`, `secure=false`.
+
 ## Version
 
-- Current library version: `0.8.0` (from `pyproject.toml`).
+- Current library version: `0.9.0` (from `pyproject.toml`).
 
 ## License
 

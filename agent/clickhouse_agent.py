@@ -235,8 +235,8 @@ class ClickHouseAgent:
             if "TaskGroup" in str(e):
                 raise Exception(
                     "MCP server connection failed. This might be due to network issues or UV environment conflicts."
-                )
-            raise Exception("MCP agent execution failed.")
+                ) from e
+            raise Exception("MCP agent execution failed.") from e
 
     async def run_stream(
         self,
@@ -267,8 +267,8 @@ class ClickHouseAgent:
             if "TaskGroup" in str(e):
                 raise Exception(
                     "MCP server connection failed. This might be due to network issues or UV environment conflicts."
-                )
-            raise Exception("MCP agent execution failed.")
+                ) from e
+            raise Exception("MCP agent execution failed.") from e
 
     async def process_tool_call(
         self,
@@ -309,14 +309,19 @@ class ClickHouseAgent:
         # Build tasks: one call per allowed table/pattern
         tasks = [call_tool_func("list_tables", {"database": database, "like": pat}, None) for pat in allowed_tables]
 
-        # Run all concurrently
-        results = await asyncio.gather(*tasks, return_exceptions=False)
+        # Run all concurrently; keep going even if one pattern fails
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Merge + de-dupe by (db, name)
         seen: set[tuple[Any, Any]] = set()
         merged: List[Dict[str, Any]] = []
         for batch in results:
-            # Only handle list batches
+            if isinstance(batch, BaseException):
+                logger.warning("list_tables call failed for one pattern: %s", batch)
+                continue
+            # mcp-clickhouse returns {"tables": [...], ...}; fall back to raw list for compat
+            if isinstance(batch, dict):
+                batch = batch.get("tables", [])
             if not isinstance(batch, list):
                 continue
             for r in batch:
