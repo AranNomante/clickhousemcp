@@ -4,20 +4,18 @@ This agent uses a similar pattern to the bank support example but integrates
 with ClickHouse via MCP server for database queries.
 """
 
-import os
 import asyncio
-
+import logging
+import os
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Optional, Any, Dict, List, AsyncIterator
 from enum import Enum
+from typing import Any
 
 from pydantic_ai import Agent
-from pydantic_ai.mcp import MCPServerStdio, RunContext, CallToolFunc
+from pydantic_ai.mcp import CallToolFunc, MCPServerStdio, RunContext
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.usage import RunUsage
-
-
-import logging
 
 from agent.default_instruction import DefaultInstructions
 
@@ -44,7 +42,7 @@ class ClickHouseDependencies:
     user: str
     password: str = ""
     secure: str = "true"
-    allowed_tables: Optional[list[str]] = None
+    allowed_tables: list[str] | None = None
 
 
 @dataclass
@@ -77,7 +75,7 @@ class RunResult:
     confidence: int
 
     """Last message in the conversation, useful for context."""
-    last_message: Optional[ModelMessage] = None
+    last_message: ModelMessage | None = None
 
 
 class ClickHouseAgent:
@@ -89,12 +87,12 @@ class ClickHouseAgent:
     """
 
     server: MCPServerStdio | None
-    env: Dict[str, str]
+    env: dict[str, str]
     agent: Agent[ClickHouseDependencies, ClickHouseOutput] | None
 
     def __init__(
         self,
-        instructions: Optional[str] = None,
+        instructions: str | None = None,
         retries: int = 3,
         output_retries: int = 3,
     ):
@@ -154,7 +152,7 @@ class ClickHouseAgent:
             output_retries=self._output_retries,
         )
 
-    async def useHistoryProcessor(self, message_history: Optional[List[ModelMessage]] = None) -> List[ModelMessage]:
+    async def useHistoryProcessor(self, message_history: list[ModelMessage] | None = None) -> list[ModelMessage]:
         from .config import config
         from .history_processor import history_processor
 
@@ -165,10 +163,10 @@ class ClickHouseAgent:
                 total_tokens += m.usage.total_tokens
 
         # Ensure we always pass a concrete list to the processor
-        concrete_history: List[ModelMessage] = message_history or []
+        concrete_history: list[ModelMessage] = message_history or []
         return await history_processor(total_tokens, concrete_history, config.model_provider)
 
-    def getClickhouseParams(self) -> Dict[str, str]:
+    def getClickhouseParams(self) -> dict[str, str]:
         return dict(
             host=self.env["CLICKHOUSE_HOST"],
             port=self.env["CLICKHOUSE_PORT"],
@@ -177,7 +175,7 @@ class ClickHouseAgent:
             secure=self.env["CLICKHOUSE_SECURE"],
         )
 
-    def getClickhouseDeps(self, allowed_tables: Optional[List[str]] = None) -> ClickHouseDependencies:
+    def getClickhouseDeps(self, allowed_tables: list[str] | None = None) -> ClickHouseDependencies:
         """Build ClickHouseDependencies and set per-call allowed_tables.
 
         This implementation intentionally keeps `allowed_tables` per-call
@@ -201,8 +199,8 @@ class ClickHouseAgent:
 
     async def run(
         self,
-        allowed_tables: Optional[List[str]] = None,
-        message_history: Optional[List[ModelMessage]] = None,
+        allowed_tables: list[str] | None = None,
+        message_history: list[ModelMessage] | None = None,
         query: str = "SHOW_TABLES",
     ) -> RunResult:
         try:
@@ -240,8 +238,8 @@ class ClickHouseAgent:
 
     async def run_stream(
         self,
-        allowed_tables: Optional[List[str]] = None,
-        message_history: Optional[List[ModelMessage]] = None,
+        allowed_tables: list[str] | None = None,
+        message_history: list[ModelMessage] | None = None,
         query: str = "SHOW_TABLES",
     ) -> AsyncIterator[Any]:
         try:
@@ -275,7 +273,7 @@ class ClickHouseAgent:
         ctx: RunContext[Any],
         call_tool_func: CallToolFunc,
         tool_name: str,
-        tool_args: Dict[str, Any],
+        tool_args: dict[str, Any],
     ) -> Any:
         allowed_tables = ctx.deps.allowed_tables if ctx.deps else None
 
@@ -304,8 +302,8 @@ class ClickHouseAgent:
         self,
         call_tool_func: CallToolFunc,
         database: str,
-        allowed_tables: List[str],
-    ) -> List[Dict[str, Any]]:
+        allowed_tables: list[str],
+    ) -> list[dict[str, Any]]:
         # Build tasks: one call per allowed table/pattern
         tasks = [call_tool_func("list_tables", {"database": database, "like": pat}, None) for pat in allowed_tables]
 
@@ -314,7 +312,7 @@ class ClickHouseAgent:
 
         # Merge + de-dupe by (db, name)
         seen: set[tuple[Any, Any]] = set()
-        merged: List[Dict[str, Any]] = []
+        merged: list[dict[str, Any]] = []
         for batch in results:
             if isinstance(batch, BaseException):
                 logger.warning("list_tables call failed for one pattern: %s", batch)
