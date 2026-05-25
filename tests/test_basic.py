@@ -1,6 +1,7 @@
 """Basic tests for ClickHouse MCP Agent package."""
 
 import pytest
+
 from agent import ClickHouseConfig
 from agent.config import ClickHouseConnections
 

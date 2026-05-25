@@ -37,7 +37,7 @@ jobs:
 
     - name: Test package installation
       run: |
-        python -c "from agent import ClickHouseAgent, ClickHouseConfig; print('✅ Package imports successfully')"
+        python -c "from agent import ClickHouseAgent, ClickHouseConfig, MCPConnectionError, AgentExecutionError, RunResult; print('✅ Package imports successfully')"
 
     - name: Run tests
       run: |

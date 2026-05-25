@@ -1,25 +1,31 @@
 
 # Changelog
 
-## [Unreleased — targeting 0.10.0]
+## [0.10.0] - 2026-05-25
 
-### To fix
-- Rewrite `default_instruction.py` system prompt
-- Fix dead field docstrings in `ClickHouseOutput` / `RunResult`
-- Rename camelCase internal methods to snake_case
-- Remove dead `ModelProvider` enum
-- Fix `run_stream()` return type annotation
-- Remove logging handler installation from library code
-- Document `allowed_tables=[]` behaviour
-- `secure: str` → `bool` in `ClickHouseDependencies`
+### Fixed
 
-### To add
-- Custom exception hierarchy
-- `sql_used` extraction
-- `allowed_databases` parameter
-- `async with ClickHouseAgent()` context manager
-- Persistent MCP server across calls
-- Integration tests
+- Dead floating string literals in `ClickHouseOutput` and `RunResult` replaced with proper class docstrings.
+- `default_instruction.py` rewritten: agent now prefers application databases (`demo`, `default`) and skips system databases unless explicitly asked, fixing the "which database?" prompt.
+- Internal methods renamed from camelCase to snake_case: `useHistoryProcessor` → `_use_history_processor`, `getClickhouseDeps` → `_get_clickhouse_deps`, `getClickhouseParams` → `_get_clickhouse_params`.
+- Dead `ModelProvider` enum removed (was never wired in).
+- `run_stream()` return type corrected: `AsyncIterator[Any]` → `AsyncGenerator[Any, None]`.
+- `set_log_level()` no longer installs root logger handlers — libraries must not configure the root logger.
+- `allowed_tables=[]` blocking behavior documented in `process_tool_call` comment.
+- `ClickHouseDependencies.secure` changed from `str` to `bool`; string-to-bool conversion now happens at the MCP env boundary in `_get_clickhouse_deps()`.
+- `assert self.agent is not None` replaced with an explicit `RuntimeError` guard in `run()` and `run_stream()`.
+- `call_tool_func` calls updated to pass `None` as the required third argument (`extras`) matching the `CallToolFunc(str, dict, dict | None)` signature in pydantic-ai 1.96.x.
+- `Agent` constructor annotated with `# type: ignore[call-overload]` to suppress the overload mismatch caused by the deprecated `MCPServerStdio` toolset type.
+
+### Added
+
+- `agent/exceptions.py`: custom exception hierarchy — `ClickHouseMCPError` (base), `MCPConnectionError`, `AgentExecutionError`, `HistoryProcessorError`. All bare `Exception` raises in `clickhouse_agent.py` and `history_processor.py` replaced with typed exceptions.
+- `allowed_databases` parameter on `run()`, `run_stream()`, and `ClickHouseDependencies`. `process_tool_call` enforces it: any `list_tables` call for a database not in the allow-list returns an empty result immediately.
+- `sql_used: list[str]` field on `RunResult`. Populated by `process_tool_call` whenever a tool call contains a `query` argument (i.e. a SQL-executing tool).
+- `async with ClickHouseAgent() as agent:` context manager. Entering the context starts the MCP subprocess once; subsequent `run()` calls reuse the live connection. Exiting stops the subprocess cleanly.
+- Persistent MCP server: when running inside the context manager, `run()` skips the per-call `async with agent:` overhead.
+- Exceptions, `RunResult`, and all public types now exported from `agent/__init__.py`.
+- `tests/test_integration.py`: 17 new tests covering exception hierarchy, `allowed_tables` enforcement, `allowed_databases` enforcement, `sql_used` capture, `_get_clickhouse_deps`, `RunResult` structure, context manager interface, and deprecation-warning guard for `_ensure_agent`.
 
 ---
 
@@ -68,7 +74,5 @@
 - Remove legacy `run.sh` wrapper; use examples or direct execution.
 
 ## [prior]
-
-### Info
 
 - Check commit changelogs for details.

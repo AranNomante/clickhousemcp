@@ -31,6 +31,7 @@ async def run_minimal() -> None:
     agent = ClickHouseAgent()
     result = await agent.run(
         allowed_tables=["orders", "products"],
+        allowed_databases=["demo"],
         query="can you please give me some insights on the recent data?",
     )
     print(result.analysis)

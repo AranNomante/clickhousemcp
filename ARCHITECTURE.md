@@ -5,42 +5,65 @@ This document describes the architecture of the ClickHouse MCP Agent library.
 
 ## Main Components
 
-- `agent/config.py`: Runtime configuration for model/provider and ClickHouse. Exposes `EnvConfig` as `config`, plus connection presets and summarization config (`SummarizeAgentEnv` as `summarize_config`). No external `.env` required.
-- `agent/clickhouse_agent.py`: Core agent that wires a single `pydantic_ai.Agent` to a single ClickHouse MCP server (`MCPServerStdio`), defines `ClickHouseDependencies`, `ClickHouseOutput`, and returns a structured `RunResult`.
-- `agent/history_processor.py`: Message history processor that prunes/summarizes older messages based on token usage and `summarize_config`.
-- `agent/__init__.py`: Public surface re-exporting the agent, configs, and history helpers.
+- `agent/exceptions.py`: Typed exception hierarchy — `ClickHouseMCPError` (base), `MCPConnectionError`, `AgentExecutionError`, `HistoryProcessorError`.
+- `agent/config.py`: Runtime configuration for model/provider and ClickHouse. Exposes `EnvConfig` as `config`, connection presets (`ClickHouseConnections`), and summarization config (`SummarizeAgentEnv` as `summarize_config`). No external `.env` required.
+- `agent/clickhouse_agent.py`: Core agent — wires a single `pydantic_ai.Agent` to a single ClickHouse MCP server (`MCPServerStdio`). Defines `ClickHouseDependencies`, `ClickHouseOutput`, and `RunResult`. Handles allow-list enforcement, SQL capture, and persistent-server lifecycle.
+- `agent/default_instruction.py`: Default system prompt. Instructs the agent to prefer application databases (`demo`, `default`) and skip system databases unless asked.
+- `agent/history_processor.py`: Prunes/summarizes message history when token usage exceeds `summarize_config.token_limit`.
+- `agent/__init__.py`: Public surface — re-exports agent, configs, history helpers, exceptions, and output types.
 
 ## Query Flow
 
 1. Configure model/provider/API key via `agent.config.config` and optionally set ClickHouse connection parameters.
 2. Instantiate `ClickHouseAgent()`, which:
-   - Reads provider/model from `config` and sets the provider API key into the environment (for the selected provider).
-   - Constructs a single `MCPServerStdio("mcp-clickhouse", env=...)` using ClickHouse settings from `config`.
-   - Creates a single `pydantic_ai.Agent` with `deps_type=ClickHouseDependencies`, `output_type=ClickHouseOutput`, and `toolsets=[server]`.
-3. Call `agent.run(query=..., allowed_tables=..., message_history=...)`.
-4. The agent invokes MCP tools to inspect schema and run SQL as needed; results flow back into a `ClickHouseOutput`.
-5. A `RunResult` is returned with `analysis`, `confidence`, `usage`, and updated `messages/new_messages/last_message` (result is also streamable).
-6. If history grows, `history_processor` may summarize earlier messages using the summarizer model specified in `summarize_config`.
+   - Reads provider/model from `config` and sets the provider API key into the environment.
+   - Lazily constructs `MCPServerStdio("mcp-clickhouse", env=...)` and a `pydantic_ai.Agent` on first use.
+3. Call `agent.run(query=..., allowed_tables=..., allowed_databases=..., message_history=...)`:
+   - If running outside a context manager: wraps the call in `async with agent:` (MCP server starts and stops each time).
+   - If running inside `async with ClickHouseAgent() as agent:`: server is already running; call goes directly to `agent.run()`.
+4. `process_tool_call` intercepts every MCP tool call:
+   - `allowed_tables=[]` → blocks all calls immediately.
+   - `allowed_databases` set → any `list_tables` call for an unlisted database returns empty.
+   - `list_tables` with `allowed_tables` patterns → fans out one call per pattern via `list_tables_multi`, deduplicates results.
+   - Any tool with a `query` argument → SQL is appended to `_sql_used`.
+5. The agent invokes MCP tools to inspect schema and execute SQL; results flow into a `ClickHouseOutput`.
+6. A `RunResult` is returned with `analysis`, `confidence`, `sql_used`, `usage`, and updated `messages/new_messages/last_message`.
+7. If history grows past `summarize_config.token_limit`, `history_processor` summarizes earlier messages using the summarizer model.
 
 ## Patterns & Conventions
 
-- **PydanticAI Agent**: Structured model IO with strongly-typed `deps` and `output`.
-- **MCP Tooling**: ClickHouse operations are performed via a single MCP server toolset.
-- **Runtime Config**: All provider/model/connection settings are configured at runtime (no static `.env` dependency).
-- **Allow-lists**: Per-call `allowed_tables` constrains scope of access. This is the primary access-restriction mechanism rather than managing multiple API keys or multiple agents.
-- **History Management**: Pluggable processor summarizes when token usage exceeds `summarize_config.token_limit`.
-- **Type Safety**: Dataclasses and type hints across public interfaces.
+- **PydanticAI Agent**: Structured model IO with strongly-typed `deps` (`ClickHouseDependencies`) and `output` (`ClickHouseOutput`).
+- **MCP Tooling**: All ClickHouse operations go through a single MCP server toolset.
+- **Runtime Config**: Provider/model/connection settings configured at runtime — no static `.env` dependency.
+- **Allow-lists**: Per-call `allowed_tables` and `allowed_databases` constrain access scope without managing multiple API keys or agents.
+- **SQL capture**: `RunResult.sql_used` is populated by intercepting tool call arguments — no prompt engineering required.
+- **Persistent server**: `async with ClickHouseAgent()` keeps the MCP subprocess alive across multiple `run()` calls; the one-shot pattern starts/stops per call.
+- **Typed errors**: All library errors inherit from `ClickHouseMCPError` — callers can catch at the base or at specific subtypes.
+- **Type Safety**: Dataclasses, `py.typed`, and mypy across all public interfaces.
 
 ## Extensibility
 
 - Add new connection profiles in `agent/config.py` (`ClickHouseConnections`).
-- Support new providers by extending `ModelAPIConfig` and the provider enum in `agent/clickhouse_agent.py`.
+- Support new providers by extending `ModelAPIConfig` with a new `<PROVIDER>_API_KEY` field.
 - Customize summarization by tuning `summarize_config` (model/provider/token limit).
-- Extend output fields by modifying `ClickHouseOutput` and corresponding usage in the agent.
+- Extend output fields by modifying `ClickHouseOutput` and the corresponding `RunResult`.
+
+## File Layout
+
+```
+agent/
+├── __init__.py             # Public re-exports
+├── clickhouse_agent.py     # Core: ClickHouseAgent, RunResult, ClickHouseOutput, ClickHouseDependencies
+├── config.py               # Global config singleton (EnvConfig), connection presets, SummarizeAgentEnv
+├── default_instruction.py  # Default system prompt as a dataclass
+├── exceptions.py           # Typed exception hierarchy
+├── history_processor.py    # Token-aware summarization of message history
+└── py.typed                # PEP 561 marker
+```
 
 ## Local Development Setup
 
-A `docker-compose.yml` at the repo root starts a local ClickHouse instance for running examples without a cloud account:
+A `docker-compose.yml` at the repo root starts a local ClickHouse instance:
 
 ```
 docker-compose.yml          # ClickHouse service, port 8123 (HTTP), persisted volume
@@ -55,7 +78,7 @@ Connection settings for local Docker: `host=localhost`, `port=8123`, `user=defau
 
 ## Version
 
-- Current library version: `0.9.0` (from `pyproject.toml`).
+- Current library version: `0.10.0` (from `pyproject.toml`).
 
 ## License
 

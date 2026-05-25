@@ -4,15 +4,17 @@ ClickHouse MCP Agent Package
 Provides a PydanticAI agent for querying ClickHouse databases via MCP server.
 """
 
-from .clickhouse_agent import ClickHouseAgent, ClickHouseDependencies, ClickHouseOutput
+from .clickhouse_agent import ClickHouseAgent, ClickHouseDependencies, ClickHouseOutput, RunResult
 from .config import ClickHouseConfig, ClickHouseConnections, EnvConfig, config, summarize_config
 from .default_instruction import DefaultInstructions
+from .exceptions import AgentExecutionError, ClickHouseMCPError, HistoryProcessorError, MCPConnectionError
 from .history_processor import history_processor, summarize_old_messages
 
 __all__ = [
     "ClickHouseAgent",
     "ClickHouseDependencies",
     "ClickHouseOutput",
+    "RunResult",
     "ClickHouseConfig",
     "ClickHouseConnections",
     "EnvConfig",
@@ -21,4 +23,8 @@ __all__ = [
     "summarize_old_messages",
     "history_processor",
     "DefaultInstructions",
+    "ClickHouseMCPError",
+    "MCPConnectionError",
+    "AgentExecutionError",
+    "HistoryProcessorError",
 ]
