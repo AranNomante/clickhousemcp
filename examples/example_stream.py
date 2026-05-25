@@ -31,6 +31,7 @@ async def run_stream() -> None:
     agent = ClickHouseAgent()
     async for chunk in agent.run_stream(
         allowed_tables=["orders", "products"],
+        allowed_databases=["demo"],
         query="can you please give me some insights on my data?",
     ):
         logger.info("received chunk %s", chunk)

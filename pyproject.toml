@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clickhouse-mcp-agent"
-version = "0.9.0"
+version = "0.10.0"
 description = "AI agent for ClickHouse database analysis via MCP"
 readme = "README.md"
 license = {text = "MIT"}
@@ -29,7 +29,6 @@ requires-python = ">=3.10"
 dependencies = [
     "pydantic-ai-slim[mcp,google,openai,anthropic,vertexai,groq,mistral,cohere]",
     "mcp-clickhouse",
-    "python-dotenv",
 ]
 
 [project.optional-dependencies]
@@ -68,6 +67,11 @@ ignore = []
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+filterwarnings = [
+    "error::DeprecationWarning",
+    "error::PendingDeprecationWarning",
+    "ignore:.*MCPServerStdio.*is deprecated:DeprecationWarning",
+]
 
 [tool.mypy]
 python_version = "3.10"

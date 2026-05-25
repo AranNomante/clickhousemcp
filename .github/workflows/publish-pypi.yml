@@ -18,7 +18,7 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Set up Python 3.12
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.12"
     
@@ -68,7 +68,7 @@ jobs:
         python -m venv test_env
         source test_env/bin/activate
         pip install dist/*.whl
-        python -c "from agent import ClickHouseAgent, ClickHouseConfig; print('✅ Package imports successfully')"
+        python -c "from agent import ClickHouseAgent, ClickHouseConfig, MCPConnectionError, AgentExecutionError, RunResult; print('✅ Package imports successfully')"
     
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1

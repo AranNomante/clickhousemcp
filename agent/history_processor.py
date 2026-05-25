@@ -42,23 +42,26 @@ async def history_processor(
 
 async def summarize_old_messages(messages: list[ModelMessage]) -> list[ModelMessage]:
     from .config import summarize_config
+    from .exceptions import HistoryProcessorError
 
-    summarize_agent = Agent(
-        model=summarize_config.ai_model,
-        instructions=(
-            "Summarize the entire conversation so far in as few tokens as possible. "
-            "Do not exceed a paragraph or 50 words."
-        ),
-    )
+    try:
+        summarize_agent = Agent(
+            model=summarize_config.ai_model,
+            instructions=(
+                "Summarize the entire conversation so far in as few tokens as possible. "
+                "Do not exceed a paragraph or 50 words."
+            ),
+        )
 
-    # Only pass conversational messages to the summarizer
-    summary = await summarize_agent.run(message_history=messages)
+        # Only pass conversational messages to the summarizer
+        summary = await summarize_agent.run(message_history=messages)
 
-    # Extract summary content from the first TextPart of the first new message (type-correct)
+        # Extract summary content from the first TextPart of the first new message (type-correct)
+        new_msgs = summary.new_messages()
 
-    new_msgs = summary.new_messages()
+        if new_msgs:
+            return [new_msgs[0]]
 
-    if new_msgs:
-        return [new_msgs[0]]
-
-    return []
+        return []
+    except Exception as e:
+        raise HistoryProcessorError("History summarization failed.") from e

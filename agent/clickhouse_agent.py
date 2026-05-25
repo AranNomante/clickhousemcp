@@ -7,9 +7,8 @@ with ClickHouse via MCP server for database queries.
 import asyncio
 import logging
 import os
-from collections.abc import AsyncIterator
-from dataclasses import dataclass
-from enum import Enum
+from collections.abc import AsyncGenerator
+from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic_ai import Agent
@@ -18,17 +17,7 @@ from pydantic_ai.messages import ModelMessage
 from pydantic_ai.usage import RunUsage
 
 from agent.default_instruction import DefaultInstructions
-
-
-# Enum for supported model providers
-class ModelProvider(Enum):
-    GOOGLE = "google"
-    OPENAI = "openai"
-    ANTHROPIC = "anthropic"
-    GROQ = "groq"
-    MISTRAL = "mistral"
-    CO = "co"
-
+from agent.exceptions import AgentExecutionError, MCPConnectionError
 
 logger = logging.getLogger(__name__)
 
@@ -41,18 +30,16 @@ class ClickHouseDependencies:
     port: str
     user: str
     password: str = ""
-    secure: str = "true"
+    secure: bool = True
     allowed_tables: list[str] | None = None
+    allowed_databases: list[str] | None = None
 
 
 @dataclass
 class ClickHouseOutput:
     """Output structure for ClickHouse agent responses."""
 
-    """Analysis of the query result."""
     analysis: str
-
-    """Confidence level of the analysis (1-10)."""
     confidence: int
 
 
@@ -60,21 +47,12 @@ class ClickHouseOutput:
 class RunResult:
     """Result structure for agent run method."""
 
-    """Messages exchanged during the query."""
     messages: list[ModelMessage]
-
-    """New messages added during the query execution."""
     new_messages: list[ModelMessage]
-
     usage: RunUsage
-
-    """Analysis of the query result."""
     analysis: str
-
-    """Confidence level of the analysis (1-10)."""
     confidence: int
-
-    """Last message in the conversation, useful for context."""
+    sql_used: list[str] = field(default_factory=list)
     last_message: ModelMessage | None = None
 
 
@@ -82,13 +60,15 @@ class ClickHouseAgent:
     """
     ClickHouse MCP Agent that uses PydanticAI for database queries.
 
-    This agent integrates with ClickHouse via MCP server for efficient querying
-    and analysis, leveraging AI models for enhanced insights.
+    Supports both one-shot calls (MCP server starts/stops per run) and persistent
+    server mode via ``async with ClickHouseAgent() as agent:``.
     """
 
     server: MCPServerStdio | None
     env: dict[str, str]
     agent: Agent[ClickHouseDependencies, ClickHouseOutput] | None
+    _in_context: bool
+    _sql_used: list[str]
 
     def __init__(
         self,
@@ -120,6 +100,8 @@ class ClickHouseAgent:
         # Defer heavy initialization (model provider may require API keys).
         self.server = None
         self.agent = None
+        self._in_context = False
+        self._sql_used = []
         self._instructions = instructions
         self._retries = retries
         self._output_retries = output_retries
@@ -132,7 +114,10 @@ class ClickHouseAgent:
         from .config import config
 
         # Initialize MCP server and agent when first needed
-        self.server = MCPServerStdio(
+        # MCPServerStdio is deprecated in pydantic-ai 1.102+ but the replacement
+        # (MCPToolset + StdioTransport) requires fastmcp>=2.14 which conflicts with
+        # mcp-clickhouse's fastmcp constraint. Revisit when mcp-clickhouse upgrades.
+        self.server = MCPServerStdio(  # type: ignore[deprecated]
             "mcp-clickhouse",
             args=[],
             env=self.env,
@@ -142,17 +127,34 @@ class ClickHouseAgent:
         if self._instructions is None:
             self._instructions = DefaultInstructions().instructions
 
-        self.agent = Agent[ClickHouseDependencies, ClickHouseOutput](
+        server = self.server  # narrow from MCPServerStdio | None
+        self.agent = Agent[ClickHouseDependencies, ClickHouseOutput](  # type: ignore[call-overload]
             model=config.ai_model,
             deps_type=ClickHouseDependencies,
             output_type=ClickHouseOutput,
-            toolsets=[self.server],
+            toolsets=[server],
             instructions=self._instructions,
-            retries=self._retries,
-            output_retries=self._output_retries,
+            retries={"tools": self._retries, "output": self._output_retries},
         )
 
-    async def useHistoryProcessor(self, message_history: list[ModelMessage] | None = None) -> list[ModelMessage]:
+    async def __aenter__(self) -> "ClickHouseAgent":
+        """Enter persistent-server mode: MCP subprocess starts once and stays running."""
+        self._ensure_agent()
+        if self.agent is None:
+            raise MCPConnectionError("Agent failed to initialize.")
+        await self.agent.__aenter__()
+        self._in_context = True
+        return self
+
+    async def __aexit__(self, *args: Any) -> None:
+        """Exit persistent-server mode and shut down the MCP subprocess."""
+        if self.agent is not None:
+            await self.agent.__aexit__(*args)
+        self._in_context = False
+        self.server = None
+        self.agent = None
+
+    async def _use_history_processor(self, message_history: list[ModelMessage] | None = None) -> list[ModelMessage]:
         from .config import config
         from .history_processor import history_processor
 
@@ -166,7 +168,7 @@ class ClickHouseAgent:
         concrete_history: list[ModelMessage] = message_history or []
         return await history_processor(total_tokens, concrete_history, config.model_provider)
 
-    def getClickhouseParams(self) -> dict[str, str]:
+    def _get_clickhouse_params(self) -> dict[str, str]:
         return dict(
             host=self.env["CLICKHOUSE_HOST"],
             port=self.env["CLICKHOUSE_PORT"],
@@ -175,51 +177,58 @@ class ClickHouseAgent:
             secure=self.env["CLICKHOUSE_SECURE"],
         )
 
-    def getClickhouseDeps(self, allowed_tables: list[str] | None = None) -> ClickHouseDependencies:
-        """Build ClickHouseDependencies and set per-call allowed_tables.
+    def _get_clickhouse_deps(
+        self,
+        allowed_tables: list[str] | None = None,
+        allowed_databases: list[str] | None = None,
+    ) -> ClickHouseDependencies:
+        """Build ClickHouseDependencies and set per-call allowed_tables and allowed_databases.
 
-        This implementation intentionally keeps `allowed_tables` per-call
-        only: if provided here we assign it directly to the returned deps
-        object without attempting to merge with any agent-level default.
+        allowed_tables=[] blocks all table-listing tool calls.
+        allowed_databases=[] blocks all databases (returns empty for every list_tables call).
+        Pass None for unrestricted access.
         """
-        # Build explicitly so mypy can validate field names/types
         deps = ClickHouseDependencies(
             host=self.env["CLICKHOUSE_HOST"],
             port=self.env["CLICKHOUSE_PORT"],
             user=self.env["CLICKHOUSE_USER"],
             password=self.env["CLICKHOUSE_PASSWORD"],
-            secure=self.env["CLICKHOUSE_SECURE"],
+            secure=self.env["CLICKHOUSE_SECURE"].lower() == "true",
         )
 
-        # Assign per-call allow-list directly (no merge/dedupe).
+        # Assign per-call allow-lists directly (no merge/dedupe).
         if allowed_tables is not None:
             deps.allowed_tables = allowed_tables
+        if allowed_databases is not None:
+            deps.allowed_databases = allowed_databases
 
         return deps
 
     async def run(
         self,
         allowed_tables: list[str] | None = None,
+        allowed_databases: list[str] | None = None,
         message_history: list[ModelMessage] | None = None,
         query: str = "SHOW_TABLES",
     ) -> RunResult:
         try:
-            # Ensure lazy init occurs here to avoid API key requirements during simple instantiation.
             self._ensure_agent()
-            assert self.agent is not None
-            message_history = await self.useHistoryProcessor(message_history)
-            deps = self.getClickhouseDeps(allowed_tables=allowed_tables)
+            if self.agent is None:
+                raise MCPConnectionError("Agent failed to initialize.")
+            self._sql_used = []
+            message_history = await self._use_history_processor(message_history)
+            deps = self._get_clickhouse_deps(allowed_tables=allowed_tables, allowed_databases=allowed_databases)
             agent = self.agent
-            async with agent:
-                result = await agent.run(
-                    query,
-                    deps=deps,
-                    message_history=message_history,
-                )
-                all_messages = result.all_messages()
-                new_messages = result.new_messages()
-                usage = result.usage()
-                output = result.output
+            if self._in_context:
+                # MCP server is already running — call directly without restarting it.
+                result = await agent.run(query, deps=deps, message_history=message_history)
+            else:
+                async with agent:
+                    result = await agent.run(query, deps=deps, message_history=message_history)
+            all_messages = result.all_messages()
+            new_messages = result.new_messages()
+            usage = result.usage
+            output = result.output
             return RunResult(
                 messages=all_messages,
                 last_message=all_messages[-1] if all_messages else None,
@@ -227,29 +236,32 @@ class ClickHouseAgent:
                 usage=usage,
                 analysis=output.analysis,
                 confidence=output.confidence,
+                sql_used=list(self._sql_used),
             )
+        except (MCPConnectionError, AgentExecutionError):
+            raise
         except Exception as e:
             logger.error(f"MCP agent execution failed: {e}")
             if "TaskGroup" in str(e):
-                raise Exception(
+                raise MCPConnectionError(
                     "MCP server connection failed. This might be due to network issues or UV environment conflicts."
                 ) from e
-            raise Exception("MCP agent execution failed.") from e
+            raise AgentExecutionError("MCP agent execution failed.") from e
 
     async def run_stream(
         self,
         allowed_tables: list[str] | None = None,
+        allowed_databases: list[str] | None = None,
         message_history: list[ModelMessage] | None = None,
         query: str = "SHOW_TABLES",
-    ) -> AsyncIterator[Any]:
+    ) -> AsyncGenerator[Any, None]:
         try:
-            # Ensure lazy init occurs here to avoid API key requirements during simple instantiation.
             self._ensure_agent()
-
-            assert self.agent is not None
-
-            message_history = await self.useHistoryProcessor(message_history)
-            deps = self.getClickhouseDeps(allowed_tables=allowed_tables)
+            if self.agent is None:
+                raise MCPConnectionError("Agent failed to initialize.")
+            self._sql_used = []
+            message_history = await self._use_history_processor(message_history)
+            deps = self._get_clickhouse_deps(allowed_tables=allowed_tables, allowed_databases=allowed_databases)
             agent = self.agent
 
             async with agent.iter(
@@ -260,13 +272,15 @@ class ClickHouseAgent:
                 async for node in agent_run:
                     yield node
 
+        except (MCPConnectionError, AgentExecutionError):
+            raise
         except Exception as e:
             logger.error(f"MCP agent execution failed: {e}")
             if "TaskGroup" in str(e):
-                raise Exception(
+                raise MCPConnectionError(
                     "MCP server connection failed. This might be due to network issues or UV environment conflicts."
                 ) from e
-            raise Exception("MCP agent execution failed.") from e
+            raise AgentExecutionError("MCP agent execution failed.") from e
 
     async def process_tool_call(
         self,
@@ -276,14 +290,19 @@ class ClickHouseAgent:
         tool_args: dict[str, Any],
     ) -> Any:
         allowed_tables = ctx.deps.allowed_tables if ctx.deps else None
+        allowed_databases = ctx.deps.allowed_databases if ctx.deps else None
 
-        # if allowed tables have length 0 we return empty list
+        # allowed_tables=[] explicitly blocks all tool calls (returns empty result immediately).
+        # Pass allowed_tables=None to allow unrestricted access.
         if allowed_tables is not None and len(allowed_tables) == 0:
             return []
 
         if tool_name == "list_tables":
             db = tool_args.get("database")
             if not isinstance(db, str):
+                return []
+            # Block databases not in the allow-list.
+            if allowed_databases is not None and db not in allowed_databases:
                 return []
             if not isinstance(allowed_tables, list) or not all(isinstance(x, str) for x in allowed_tables):
                 # Fallback to single call if allow-list is not a proper list of strings
@@ -293,6 +312,11 @@ class ClickHouseAgent:
                 database=db,
                 allowed_tables=allowed_tables,
             )
+
+        # Capture SQL from query tool calls for RunResult.sql_used.
+        query_arg = tool_args.get("query")
+        if isinstance(query_arg, str):
+            self._sql_used.append(query_arg)
 
         result = await call_tool_func(tool_name, tool_args, None)
 

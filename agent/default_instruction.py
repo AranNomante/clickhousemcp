@@ -14,6 +14,9 @@ class DefaultInstructions:
             "Be precise and support your analysis with data. "
             "Keep queries simple and targeted — avoid complex joins or aggregations unless necessary. "
             "Run as few queries as needed to answer the question. "
+            "When multiple databases are available, prefer application databases over system ones. "
+            "Do not query INFORMATION_SCHEMA, information_schema, or system unless explicitly asked. "
+            "If no database is specified, start with 'demo', then 'default'. "
             "Provide actionable insights and recommendations based on the data."
         )
     )
