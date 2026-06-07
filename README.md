@@ -1,6 +1,6 @@
 # ClickHouse MCP Agent
 
-[![PyPI](https://img.shields.io/pypi/v/clickhouse-mcp-agent)](https://pypi.org/project/clickhouse-mcp-agent/)
+[![PyPI](https://img.shields.io/badge/PyPI-0.12.0-blue)](https://pypi.org/project/clickhouse-mcp-agent/)
 [![pydantic-ai-slim](https://img.shields.io/badge/pydantic--ai--slim-1.96.1-blue)](https://pypi.org/project/pydantic-ai-slim/)
 [![mcp-clickhouse](https://img.shields.io/badge/mcp--clickhouse-0.4.0-blue)](https://pypi.org/project/mcp-clickhouse/)
 
