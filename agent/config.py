@@ -36,7 +36,7 @@ class ModelAPIConfig:
 class EnvConfig:
     """Central configuration for AI, model provider, and ClickHouse settings."""
 
-    ai_model: str = "gemini-2.5-flash"
+    ai_model: str = "google:gemini-3.1-flash-lite"
     model_provider: str = "google"  # Default provider
     log_level: str = "INFO"
     debug: bool = False
@@ -171,7 +171,7 @@ def get_connection_string(config: ClickHouseConfig) -> str:
 class SummarizeAgentEnv:
     """Minimal config for the summarization agent (no ClickHouse fields)."""
 
-    ai_model: str = "gemini-2.5-flash"
+    ai_model: str = "google:gemini-3.1-flash-lite"
     model_provider: str = "google"  # Default provider
     model_api: ModelAPIConfig = field(default_factory=ModelAPIConfig)
     token_limit: int = 1000  # Default token limit for summarization

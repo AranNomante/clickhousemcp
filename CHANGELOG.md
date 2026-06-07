@@ -1,6 +1,27 @@
 
 # Changelog
 
+## [0.12.0] - 2026-06-07
+
+### Changed
+
+- API locked — no breaking changes without a major version from here.
+- MCPServerStdio → MCPToolset migration intentionally deferred: blocked on `mcp-clickhouse` upgrading its fastmcp pin to 3.x.
+- Updated to `mcp-clickhouse` 0.4.0.
+- Default model updated from `gemini-2.5-flash` to `google:gemini-3.1-flash-lite` in both `EnvConfig` and `SummarizeAgentEnv`.
+- Dependencies exact-pinned: `pydantic-ai-slim==1.96.1`, `mcp-clickhouse==0.4.0`.
+
+### Fixed
+
+- **`list_databases` enforcement**: `mcp-clickhouse` 0.4.0 added a `list_databases` tool that was not intercepted by `process_tool_call`, letting the agent see all databases even when `allowed_databases` was set. Now filtered: returns only databases in the allow-list, or empty when `allowed_databases=[]`.
+
+### CI
+
+- `mypy agent/` added to CI matrix.
+- `py.typed` marker presence verified in CI on every build.
+
+---
+
 ## [0.11.2] - 2026-06-07
 
 ### Fixed

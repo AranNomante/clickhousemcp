@@ -19,7 +19,7 @@ config.set_log_level("INFO")
 config.set_clickhouse(host="localhost", port="8123", user="default", password="", secure="false")
 
 # AI provider — replace or set GEMINI_API_KEY in your environment
-config.set_ai_model(os.environ.get("AI_MODEL", "gemini-2.5-flash"))
+config.set_ai_model(os.environ.get("AI_MODEL", "google:gemini-3.1-flash-lite"))
 config.set_model_api_key("google", os.environ.get("GOOGLE_API_KEY", ""))
 
 
