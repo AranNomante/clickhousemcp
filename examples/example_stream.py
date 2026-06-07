@@ -11,20 +11,16 @@ Set your API key via environment variable or replace the placeholder below.
 import asyncio
 import os
 from agent.clickhouse_agent import ClickHouseAgent, logger
-from agent.config import config, summarize_config
+from agent.config import config
 
 config.set_log_level("INFO")
 
 # Local ClickHouse running via docker-compose.yml
 config.set_clickhouse(host="localhost", port="8123", user="default", password="", secure="false")
 
-# Summarization (optional — uses a cheap model to prune long histories)
-summarize_config.set_token_limit(10000)
-summarize_config.set_ai_model("gemini-2.5-flash")
-
 # AI provider — replace or set GEMINI_API_KEY in your environment
-config.set_ai_model("gemini-2.5-flash")
-config.set_model_api_key("google", os.environ.get("GOOGLE_API_KEY",""))
+config.set_ai_model(os.environ.get("AI_MODEL", "gemini-2.5-flash"))
+config.set_model_api_key("google", os.environ.get("GOOGLE_API_KEY", ""))
 
 
 async def run_stream() -> None:

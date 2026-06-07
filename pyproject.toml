@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "clickhouse-mcp-agent"
-version = "0.10.0"
+version = "0.11.2"
 description = "AI agent for ClickHouse database analysis via MCP"
 readme = "README.md"
 license = {text = "MIT"}
@@ -27,7 +27,7 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "pydantic-ai-slim[mcp,google,openai,anthropic,vertexai,groq,mistral,cohere]",
+    "pydantic-ai-slim[mcp,google,openai,anthropic,vertexai,grok,mistral,cohere]",
     "mcp-clickhouse",
 ]
 
@@ -42,6 +42,9 @@ dev = [
 examples = [
     "jupyter",
     "ipython",
+]
+logging = [
+    "structlog",
 ]
 
 [project.urls]

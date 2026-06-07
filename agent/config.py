@@ -11,7 +11,7 @@ class ModelAPIConfig:
     OPENAI_API_KEY: str | None = None
     ANTHROPIC_API_KEY: str | None = None
     GOOGLE_API_KEY: str | None = None
-    GROQ_API_KEY: str | None = None
+    GROK_API_KEY: str | None = None
     MISTRAL_API_KEY: str | None = None
     CO_API_KEY: str | None = None
 
@@ -20,7 +20,7 @@ class ModelAPIConfig:
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
             "google": "GOOGLE_API_KEY",
-            "groq": "GROQ_API_KEY",
+            "grok": "GROK_API_KEY",
             "mistral": "MISTRAL_API_KEY",
             "co": "CO_API_KEY",
         }
@@ -36,7 +36,7 @@ class ModelAPIConfig:
 class EnvConfig:
     """Central configuration for AI, model provider, and ClickHouse settings."""
 
-    ai_model: str = "gemini-2.0-flash"
+    ai_model: str = "gemini-2.5-flash"
     model_provider: str = "google"  # Default provider
     log_level: str = "INFO"
     debug: bool = False
@@ -171,7 +171,7 @@ def get_connection_string(config: ClickHouseConfig) -> str:
 class SummarizeAgentEnv:
     """Minimal config for the summarization agent (no ClickHouse fields)."""
 
-    ai_model: str = "gemini-2.0-flash"
+    ai_model: str = "gemini-2.5-flash"
     model_provider: str = "google"  # Default provider
     model_api: ModelAPIConfig = field(default_factory=ModelAPIConfig)
     token_limit: int = 1000  # Default token limit for summarization
