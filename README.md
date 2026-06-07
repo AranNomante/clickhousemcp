@@ -1,6 +1,6 @@
 # ClickHouse MCP Agent
 
-![version](https://img.shields.io/badge/version-0.10.0-blue)
+![version](https://img.shields.io/badge/version-0.11.2-blue)
 
 AI agent for ClickHouse database analysis via MCP (Model Context Protocol).
 
@@ -16,16 +16,22 @@ A single MCP server (`mcp-clickhouse`) driven by a single agent instance. Access
 - Access restriction via per-call allow-lists (`allowed_tables`, `allowed_databases`)
 - Streamable results via `run_stream()`
 - Persistent MCP server mode via `async with ClickHouseAgent()`
+- Parallel queries via `run_batch()`
+- Lifecycle reset via `reset()`
+- Query result cache via `enable_cache=True`
 - Typed exception hierarchy for reliable error handling
+- Optional `structlog` integration (`pip install ".[logging]"`)
 
 ### Supported Providers
 
-- OpenAI
-- Anthropic
-- Google Gemini
-- Groq
-- Mistral
-- Cohere
+| Provider | Key env var | Notes |
+|---|---|---|
+| Google Gemini | `GOOGLE_API_KEY` | Default |
+| OpenAI | `OPENAI_API_KEY` | |
+| Anthropic | `ANTHROPIC_API_KEY` | |
+| Grok | `GROK_API_KEY` | Free tier, high rate limits |
+| Mistral | `MISTRAL_API_KEY` | |
+| Cohere | `CO_API_KEY` | |
 
 ## Local Development (Docker)
 
@@ -41,6 +47,7 @@ pip install -e ".[dev]"
 # Run the examples (set your API key first)
 GOOGLE_API_KEY=... python examples/example_minimal.py
 GOOGLE_API_KEY=... python examples/example_stream.py
+GOOGLE_API_KEY=... python examples/example_0_11.py
 ```
 
 The `docker/init.sql` file seeds `demo.orders` (25 orders, May 2026) and `demo.products` (10 products across Electronics, Sports, Home, Books) automatically on first start.
@@ -81,22 +88,51 @@ async def main():
         r2 = await agent.run(query="which products are selling fastest?", message_history=r1.messages)
 ```
 
+### Parallel queries
+
+```python
+async with ClickHouseAgent() as agent:
+    results = await agent.run_batch(
+        ["how many orders?", "total revenue?", "top 5 products?"],
+        allowed_databases=["demo"],
+    )
+    for r in results:
+        print(r.analysis)
+```
+
+### Query result cache
+
+```python
+agent = ClickHouseAgent(enable_cache=True)
+result = await agent.run(query="how many orders?", allowed_databases=["demo"])
+# identical call returns instantly from cache (stateless queries only)
+```
+
+### Lifecycle reset
+
+```python
+agent = ClickHouseAgent()
+await agent.run(query="...")
+await agent.reset()          # tear down MCP subprocess
+await agent.run(query="...")  # re-initializes on next call
+```
+
 ### Switching providers
 
 All providers use the same interface — just swap the model string and key:
 
 ```python
-# Anthropic
-config.set_ai_model("anthropic:claude-haiku-4-5-20251001")
+# Anthropic Claude 4
+config.set_ai_model("anthropic:claude-sonnet-4-6")
 config.set_model_api_key("anthropic", "your_key")
 
-# Google
-config.set_ai_model("google-gla:gemini-2.0-flash")
+# Google Gemini
+config.set_ai_model("gemini-2.5-flash")
 config.set_model_api_key("google", "your_key")
 
-# Groq
-config.set_ai_model("groq:llama-3.3-70b-versatile")
-config.set_model_api_key("groq", "your_key")
+# Grok (free tier, high rate limits — good for testing)
+config.set_ai_model("grok:llama-3.3-70b-versatile")
+config.set_model_api_key("grok", "your_key")
 ```
 
 ## Message History & Summarization
@@ -145,13 +181,13 @@ except ClickHouseMCPError:
 ## Requirements
 
 - Python 3.10+
-- AI API key for your provider (OpenAI, Anthropic, Google/Gemini, Groq, Mistral, Cohere)
+- An AI provider API key (Google, OpenAI, Anthropic, Grok, Mistral, or Cohere)
 
 All dependencies are managed via `pyproject.toml`.
 
 ## Roadmap
 
-### ✅ Done
+### ✅ Done (0.11.x)
 
 - MCP integration via `pydantic_ai.mcp.MCPServerStdio`
 - SQL generation/execution via MCP tools
@@ -166,19 +202,17 @@ All dependencies are managed via `pyproject.toml`.
 - Typed exception hierarchy
 - Local development via Docker (`docker compose up -d`)
 - `ruff` linting, Python 3.13 support, CI hardened
-
-### ⚙️ 0.11 — Agent API expansion
-
-- Async batch queries (parallel queries in one call)
-- `ClickHouseAgent.reset()` for lifecycle control without re-instantiation
-- `structlog` optional dep for structured observability
-- `pydantic-ai` API audit and model ref updates (Claude 4 / GPT family)
+- Async batch queries via `run_batch()`
+- `reset()` for lifecycle control
+- Query result cache (`enable_cache=True`)
+- `structlog` optional dep (`pip install ".[logging]"`)
 
 ### 🔒 0.12 — Stable
 
 - API locked — no breaking changes without a major version
 - All known bugs resolved
 - `py.typed` check added to CI
+- MCPServerStdio → MCPToolset migration (pending mcp-clickhouse fastmcp upgrade)
 
 ### 🔭 Post-1.0 — Future
 
