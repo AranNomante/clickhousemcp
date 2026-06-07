@@ -128,6 +128,42 @@ async def test_process_tool_call_empty_allowed_databases_blocks_all() -> None:
     call_tool_func.assert_not_called()
 
 
+@pytest.mark.asyncio
+async def test_process_tool_call_list_databases_filtered_by_allowed() -> None:
+    agent = ClickHouseAgent()
+    ctx = _make_ctx(allowed_databases=["demo"])
+    call_tool_func = AsyncMock(return_value=["demo", "system", "information_schema"])
+
+    result = await agent.process_tool_call(ctx, call_tool_func, "list_databases", {})
+
+    assert result == ["demo"]
+    call_tool_func.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_process_tool_call_list_databases_empty_allowed_returns_empty() -> None:
+    agent = ClickHouseAgent()
+    ctx = _make_ctx(allowed_databases=[])
+    call_tool_func = AsyncMock()
+
+    result = await agent.process_tool_call(ctx, call_tool_func, "list_databases", {})
+
+    assert result == []
+    call_tool_func.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_process_tool_call_list_databases_unrestricted_passes_through() -> None:
+    agent = ClickHouseAgent()
+    ctx = _make_ctx(allowed_databases=None)
+    all_dbs = ["demo", "system", "information_schema"]
+    call_tool_func = AsyncMock(return_value=all_dbs)
+
+    result = await agent.process_tool_call(ctx, call_tool_func, "list_databases", {})
+
+    assert result == all_dbs
+
+
 # ---------------------------------------------------------------------------
 # sql_used extraction
 # ---------------------------------------------------------------------------

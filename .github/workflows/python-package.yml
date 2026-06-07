@@ -35,6 +35,19 @@ jobs:
       run: |
         ruff check agent/
 
+    - name: Type check with mypy
+      run: |
+        mypy agent/
+
+    - name: Check py.typed marker
+      run: |
+        python -c "
+        import pathlib, agent
+        marker = pathlib.Path(agent.__file__).parent / 'py.typed'
+        assert marker.exists(), 'py.typed marker missing from installed package'
+        print('✅ py.typed present')
+        "
+
     - name: Test package installation
       run: |
         python -c "from agent import ClickHouseAgent, ClickHouseConfig, MCPConnectionError, AgentExecutionError, RunResult; print('✅ Package imports successfully')"

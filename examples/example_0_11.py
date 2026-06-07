@@ -5,8 +5,7 @@ Prerequisites:
     docker compose up -d
     uv pip install -e ".[dev]"
 
-Set your API key:
-    export GOOGLE_API_KEY=...
+Set your API key via environment variable or replace the placeholder below.
 """
 
 import asyncio

@@ -1,6 +1,8 @@
 # ClickHouse MCP Agent
 
-![version](https://img.shields.io/badge/version-0.11.2-blue)
+[![PyPI](https://img.shields.io/pypi/v/clickhouse-mcp-agent)](https://pypi.org/project/clickhouse-mcp-agent/)
+[![pydantic-ai-slim](https://img.shields.io/badge/pydantic--ai--slim-1.96.1-blue)](https://pypi.org/project/pydantic-ai-slim/)
+[![mcp-clickhouse](https://img.shields.io/badge/mcp--clickhouse-0.4.0-blue)](https://pypi.org/project/mcp-clickhouse/)
 
 AI agent for ClickHouse database analysis via MCP (Model Context Protocol).
 
@@ -44,10 +46,11 @@ docker compose up -d
 # Install the package with dev dependencies
 pip install -e ".[dev]"
 
-# Run the examples (set your API key first)
+# Run the examples (set your Google API key first)
 GOOGLE_API_KEY=... python examples/example_minimal.py
 GOOGLE_API_KEY=... python examples/example_stream.py
 GOOGLE_API_KEY=... python examples/example_0_11.py
+GOOGLE_API_KEY=... python examples/example_integration.py
 ```
 
 The `docker/init.sql` file seeds `demo.orders` (25 orders, May 2026) and `demo.products` (10 products across Electronics, Sports, Home, Books) automatically on first start.
@@ -127,7 +130,7 @@ config.set_ai_model("anthropic:claude-sonnet-4-6")
 config.set_model_api_key("anthropic", "your_key")
 
 # Google Gemini
-config.set_ai_model("gemini-2.5-flash")
+config.set_ai_model("google:gemini-3.1-flash-lite")
 config.set_model_api_key("google", "your_key")
 
 # Grok (free tier, high rate limits — good for testing)
@@ -141,7 +144,7 @@ Pass `message_history` between calls for multi-turn conversations. When token us
 
 ```python
 summarize_config.set_token_limit(10000)
-summarize_config.set_ai_model("gemini-2.5-flash")
+summarize_config.set_ai_model("google:gemini-3.1-flash-lite")
 ```
 
 ## Output
@@ -207,12 +210,14 @@ All dependencies are managed via `pyproject.toml`.
 - Query result cache (`enable_cache=True`)
 - `structlog` optional dep (`pip install ".[logging]"`)
 
-### 🔒 0.12 — Stable
+### ✅ 0.12 — Stable
 
 - API locked — no breaking changes without a major version
 - All known bugs resolved
 - `py.typed` check added to CI
-- MCPServerStdio → MCPToolset migration (pending mcp-clickhouse fastmcp upgrade)
+- `mypy agent/` added to CI matrix
+- Updated to `mcp-clickhouse` 0.4.0; `list_databases` tool now enforced by `allowed_databases` allow-list
+- Default model updated to `google:gemini-3.1-flash-lite`
 
 ### 🔭 Post-1.0 — Future
 

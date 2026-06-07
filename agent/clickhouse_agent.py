@@ -409,6 +409,14 @@ class ClickHouseAgent:
         if allowed_tables is not None and len(allowed_tables) == 0:
             return []
 
+        if tool_name == "list_databases":
+            if allowed_databases is not None and len(allowed_databases) == 0:
+                return []
+            result = await call_tool_func(tool_name, tool_args, None)
+            if allowed_databases is not None and isinstance(result, list):
+                return [db for db in result if isinstance(db, str) and db in allowed_databases]
+            return result
+
         if tool_name == "list_tables":
             db = tool_args.get("database")
             if not isinstance(db, str):
@@ -467,7 +475,10 @@ class ClickHouseAgent:
             for r in batch:
                 if not isinstance(r, dict):
                     continue
-                key = (r.get("database"), r.get("name"))
+                db, name = r.get("database"), r.get("name")
+                if not isinstance(db, str) or not isinstance(name, str):
+                    continue
+                key = (db, name)
                 if key in seen:
                     continue
                 seen.add(key)

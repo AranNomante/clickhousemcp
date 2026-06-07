@@ -24,7 +24,7 @@ This document describes the architecture of the ClickHouse MCP Agent library.
    - For parallel queries use `agent.run_batch(queries, ...)` which creates an asyncio task per query.
 4. `process_tool_call` intercepts every MCP tool call:
    - `allowed_tables=[]` → blocks all calls immediately.
-   - `allowed_databases` set → any `list_tables` call for an unlisted database returns empty.
+   - `allowed_databases` set → `list_databases` returns only allowed databases; any `list_tables` call for an unlisted database returns empty.
    - `list_tables` with `allowed_tables` patterns → fans out one call per pattern via `list_tables_multi`, deduplicates results.
    - Any tool with a `query` argument → SQL is appended to the per-call `_sql_used_var` contextvar list (isolated per asyncio task).
 5. The agent invokes MCP tools to inspect schema and execute SQL; results flow into a `ClickHouseOutput`.
@@ -73,16 +73,17 @@ docker-compose.yml          # ClickHouse service, port 8123 (HTTP), persisted vo
 docker/
 └── init.sql                # Seeds demo.orders + demo.products on first start
 examples/
-├── example_minimal.py      # run() against local Docker, any supported provider
-├── example_stream.py       # run_stream() against local Docker, any supported provider
-└── example_0_11.py         # 0.11 feature showcase: reset(), run_batch(), cache, structlog
+├── example_minimal.py       # run() against local Docker, any supported provider
+├── example_stream.py        # run_stream() against local Docker, any supported provider
+├── example_0_11.py          # 0.11 feature showcase: reset(), run_batch(), cache, structlog
+└── example_integration.py  # exercises every feature end-to-end with minimal API calls
 ```
 
 Connection settings for local Docker: `host=localhost`, `port=8123`, `user=default`, `password=""`, `secure=false`.
 
 ## Version
 
-- Current library version: `0.11.2` (from `pyproject.toml`).
+- Current library version: `0.12.0` (from `pyproject.toml`).
 
 ## License
 
