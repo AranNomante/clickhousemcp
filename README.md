@@ -221,7 +221,6 @@ All dependencies are managed via `pyproject.toml`.
 
 ### 🔭 Post-1.0 — Future
 
-- Database-agnostic abstraction (Elasticsearch, MongoDB, Postgres)
 - FastAPI standalone deployment option
 
 ## Contributing
