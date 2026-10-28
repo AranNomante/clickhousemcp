@@ -11,7 +11,9 @@ class ModelAPIConfig:
     OPENAI_API_KEY: str | None = None
     ANTHROPIC_API_KEY: str | None = None
     GOOGLE_API_KEY: str | None = None
-    GROK_API_KEY: str | None = None
+    GROK_API_KEY: str | None = None  # legacy `grok:` prefix; prefer XAI_API_KEY with `xai:`
+    XAI_API_KEY: str | None = None
+    GROQ_API_KEY: str | None = None
     MISTRAL_API_KEY: str | None = None
     CO_API_KEY: str | None = None
 
@@ -21,6 +23,8 @@ class ModelAPIConfig:
             "anthropic": "ANTHROPIC_API_KEY",
             "google": "GOOGLE_API_KEY",
             "grok": "GROK_API_KEY",
+            "xai": "XAI_API_KEY",
+            "groq": "GROQ_API_KEY",
             "mistral": "MISTRAL_API_KEY",
             "co": "CO_API_KEY",
         }

@@ -104,3 +104,24 @@ async def test_clickhouse_output_structure() -> None:
     assert isinstance(output.confidence, int)
     assert output.analysis == "Test analysis"
     assert output.confidence == 8
+
+
+def test_groq_api_key_is_supported() -> None:
+    """Groq and Grok (xAI) are different providers with different keys."""
+    from agent.config import ModelAPIConfig
+
+    keys = ModelAPIConfig()
+    keys.set_api_key("groq", "gq")
+    keys.set_api_key("xai", "xa")
+    assert keys.GROQ_API_KEY == "gq"
+    assert keys.XAI_API_KEY == "xa"
+
+
+def test_documented_provider_model_strings_resolve(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The provider examples in the README must resolve to the intended provider."""
+    from pydantic_ai.models import infer_model
+
+    monkeypatch.setenv("GROQ_API_KEY", "x")
+    monkeypatch.setenv("XAI_API_KEY", "x")
+    assert type(infer_model("groq:llama-3.3-70b-versatile")).__name__ == "GroqModel"
+    assert type(infer_model("xai:grok-4")).__name__ == "XaiModel"
