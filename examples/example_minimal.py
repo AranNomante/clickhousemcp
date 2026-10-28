@@ -10,6 +10,7 @@ Set your API key via environment variable or replace the placeholder below.
 
 import asyncio
 import os
+
 from agent.clickhouse_agent import ClickHouseAgent
 from agent.config import config
 

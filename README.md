@@ -1,12 +1,12 @@
 # ClickHouse MCP Agent
 
-[![PyPI](https://img.shields.io/badge/PyPI-0.12.0-blue)](https://pypi.org/project/clickhouse-mcp-agent/)
+[![PyPI](https://img.shields.io/pypi/v/clickhouse-mcp-agent)](https://pypi.org/project/clickhouse-mcp-agent/)
 [![pydantic-ai-slim](https://img.shields.io/badge/pydantic--ai--slim-1.96.1-blue)](https://pypi.org/project/pydantic-ai-slim/)
 [![mcp-clickhouse](https://img.shields.io/badge/mcp--clickhouse-0.4.0-blue)](https://pypi.org/project/mcp-clickhouse/)
 
 AI agent for ClickHouse database analysis via MCP (Model Context Protocol).
 
-A single MCP server (`mcp-clickhouse`) driven by a single agent instance. Access restriction is performed via explicit allow-lists you pass per call (`allowed_tables`, `allowed_databases`), rather than managing multiple keys or fan-out across multiple agents.
+A single MCP server (`mcp-clickhouse`) driven by a single agent instance. You can scope what the agent discovers per call with allow-lists (`allowed_tables`, `allowed_databases`). See [Security](#security) for what they do and do not restrict.
 
 ## Features
 
@@ -15,7 +15,8 @@ A single MCP server (`mcp-clickhouse`) driven by a single agent instance. Access
 - Easy connection management (predefined or custom)
 - Conversational context with message-history pruning/summarization
 - No CLI or external .env required — configure at runtime
-- Access restriction via per-call allow-lists (`allowed_tables`, `allowed_databases`)
+- Per-call discovery scoping via allow-lists (`allowed_tables`, `allowed_databases`)
+- Read-only queries by default (enforced by `mcp-clickhouse`)
 - Streamable results via `run_stream()`
 - Persistent MCP server mode via `async with ClickHouseAgent()`
 - Parallel queries via `run_batch()`
@@ -31,7 +32,8 @@ A single MCP server (`mcp-clickhouse`) driven by a single agent instance. Access
 | Google Gemini | `GOOGLE_API_KEY` | Default |
 | OpenAI | `OPENAI_API_KEY` | |
 | Anthropic | `ANTHROPIC_API_KEY` | |
-| Grok | `GROK_API_KEY` | Free tier, high rate limits |
+| Grok (xAI) | `XAI_API_KEY` | Model prefix `xai:` (e.g. `xai:grok-4`) |
+| Groq | `GROQ_API_KEY` | Fast open models (e.g. `groq:llama-3.3-70b-versatile`), free tier |
 | Mistral | `MISTRAL_API_KEY` | |
 | Cohere | `CO_API_KEY` | |
 
@@ -133,10 +135,30 @@ config.set_model_api_key("anthropic", "your_key")
 config.set_ai_model("google:gemini-3.1-flash-lite")
 config.set_model_api_key("google", "your_key")
 
-# Grok (free tier, high rate limits — good for testing)
-config.set_ai_model("grok:llama-3.3-70b-versatile")
-config.set_model_api_key("grok", "your_key")
+# Grok (xAI)
+config.set_ai_model("xai:grok-4")
+config.set_model_api_key("xai", "your_key")
+
+# Groq (fast open models, free tier — good for testing)
+config.set_ai_model("groq:llama-3.3-70b-versatile")
+config.set_model_api_key("groq", "your_key")
 ```
+
+## Security
+
+**Queries are read-only.** `mcp-clickhouse` runs every query with ClickHouse's `readonly` setting unless `CLICKHOUSE_ALLOW_WRITE_ACCESS=true` is set for the server, so the agent cannot modify data.
+
+**Allow-lists scope discovery; they are not an access control.** `allowed_databases` and `allowed_tables` filter what the `list_databases` and `list_tables` tools return, which keeps the model focused on the right tables. They do **not** inspect the SQL passed to `run_query`: a model that writes `SELECT * FROM other_db.other_table` directly can still read it.
+
+**To restrict what can be read, use ClickHouse permissions.** Connect with a ClickHouse user that only has `SELECT` grants on the data the agent may see:
+
+```sql
+CREATE USER agent_reader IDENTIFIED BY '...';
+GRANT SELECT ON demo.orders TO agent_reader;
+GRANT SELECT ON demo.products TO agent_reader;
+```
+
+ClickHouse then rejects any query outside those grants, whatever SQL the model generates.
 
 ## Message History & Summarization
 
@@ -184,7 +206,7 @@ except ClickHouseMCPError:
 ## Requirements
 
 - Python 3.10+
-- An AI provider API key (Google, OpenAI, Anthropic, Grok, Mistral, or Cohere)
+- An AI provider API key (Google, OpenAI, Anthropic, Grok, Groq, Mistral, or Cohere)
 
 All dependencies are managed via `pyproject.toml`.
 
@@ -196,7 +218,7 @@ All dependencies are managed via `pyproject.toml`.
 - SQL generation/execution via MCP tools
 - Schema inspection (databases/tables/columns)
 - Config-driven connections (playground/local/custom)
-- Access restriction via per-call allow-lists (`allowed_tables`, `allowed_databases`)
+- Discovery scoping via per-call allow-lists (`allowed_tables`, `allowed_databases`)
 - Runtime provider/model selection and API key management
 - Structured outputs (`ClickHouseOutput`) and `RunResult` with `sql_used`
 - Message history pruning/summarization
@@ -218,6 +240,17 @@ All dependencies are managed via `pyproject.toml`.
 - `mypy agent/` added to CI matrix
 - Updated to `mcp-clickhouse` 0.4.0; `list_databases` tool now enforced by `allowed_databases` allow-list
 - Default model updated to `google:gemini-3.1-flash-lite`
+
+### ✅ 0.12.1 — Fixes
+
+- Allow-list filtering now works against real `mcp-clickhouse` responses (previously bypassed)
+- Contract tests against the real `mcp-clickhouse` server, and live tests against ClickHouse in CI
+- Grok (xAI) and Groq provider setup corrected
+
+### 🚧 Next
+
+- Migrate to pydantic-ai 2.x (`MCPToolset`) and `mcp-clickhouse` 0.7
+- `role` and query timeout options (ClickHouse-enforced access control)
 
 ### 🔭 Post-1.0 — Future
 
