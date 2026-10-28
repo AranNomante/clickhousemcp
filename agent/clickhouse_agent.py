@@ -6,6 +6,7 @@ with ClickHouse via MCP server for database queries.
 
 import asyncio
 import contextvars
+import json
 import logging
 import os
 from collections.abc import AsyncGenerator
@@ -30,6 +31,23 @@ except ImportError:
 # Per-task SQL accumulator — set at the start of each run() call so concurrent
 # runs on the same agent instance each track their own SQL independently.
 _sql_used_var: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar("_sql_used", default=None)
+
+
+def _parse_tool_result(result: Any) -> Any:
+    """Decode a JSON-encoded MCP tool result into Python objects.
+
+    ``mcp-clickhouse`` tools are annotated ``-> str`` and return ``json.dumps(...)``,
+    so the value reaching ``process_tool_call`` is a JSON *string*, not a list/dict.
+    Non-JSON strings and already-decoded values are returned unchanged.
+    """
+    if isinstance(result, str):
+        text = result.strip()
+        if text.startswith(("[", "{")):
+            try:
+                return json.loads(text)
+            except ValueError:
+                return result
+    return result
 
 
 @dataclass
@@ -413,9 +431,14 @@ class ClickHouseAgent:
             if allowed_databases is not None and len(allowed_databases) == 0:
                 return []
             result = await call_tool_func(tool_name, tool_args, None)
-            if allowed_databases is not None and isinstance(result, list):
-                return [db for db in result if isinstance(db, str) and db in allowed_databases]
-            return result
+            if allowed_databases is None:
+                return result
+            databases = _parse_tool_result(result)
+            if not isinstance(databases, list):
+                # Fail closed: never pass an unfiltered listing through when an allow-list is set.
+                logger.warning("list_databases returned an unexpected shape; returning empty list")
+                return []
+            return [db for db in databases if isinstance(db, str) and db in allowed_databases]
 
         if tool_name == "list_tables":
             db = tool_args.get("database")
@@ -467,6 +490,7 @@ class ClickHouseAgent:
             if isinstance(batch, BaseException):
                 logger.warning("list_tables call failed for one pattern: %s", batch)
                 continue
+            batch = _parse_tool_result(batch)
             # mcp-clickhouse returns {"tables": [...], ...}; fall back to raw list for compat
             if isinstance(batch, dict):
                 batch = batch.get("tables", [])
