@@ -1,6 +1,28 @@
 
 # Changelog
 
+## [0.12.1] - 2026-10-29
+
+### Fixed
+
+- **Allow-list filtering bypassed with real server responses.** `mcp-clickhouse` tools return JSON *strings*, which pydantic-ai passes to `process_tool_call` unparsed. The filters only handled Python lists/dicts, so `list_databases` returned every database even with `allowed_databases` set, and `list_tables` with `allowed_tables` patterns returned no tables at all. Results are now decoded before filtering, and an undecodable listing returns empty when an allow-list is active (fail closed).
+- **Test suite crashed on fresh installs.** Newer pytest-asyncio emits a deprecation warning that `filterwarnings = error` turned into an INTERNALERROR. Set `asyncio_default_fixture_loop_scope = "function"`.
+- **Grok/Groq provider confusion.** The `grok` extra did not exist, and the README's `grok:llama-3.3-70b-versatile` example pointed a Groq model at xAI's API. Added the `groq` and `xai` extras, `GROQ_API_KEY` / `XAI_API_KEY` support, and corrected examples (`groq:llama-3.3-70b-versatile`, `xai:grok-4`). `GROK_API_KEY` is kept for the legacy `grok:` prefix.
+
+### Changed
+
+- Docs: allow-lists are documented as discovery scoping, not access control. `run_query` SQL is not filtered by them; use ClickHouse grants to restrict reads (README → Security).
+- README PyPI badge now shows the live published version.
+
+### Tests / CI
+
+- `tests/test_wire_format.py`: unit tests using the JSON-string wire format.
+- `tests/test_contract.py`: runs the real `mcp-clickhouse` server over stdio (ClickHouse client faked) with a scripted model; no API key needed.
+- `tests/test_clickhouse_live.py` + CI job `live-clickhouse`: real ClickHouse service container, seeded from `docker/init.sql`.
+- CI lints the whole repo (`ruff check .`); fixed existing lint errors in `examples/` and `tests/`.
+
+---
+
 ## [0.12.0] - 2026-06-07
 
 ### Changed

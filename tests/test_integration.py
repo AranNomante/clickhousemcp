@@ -412,7 +412,6 @@ def test_cache_is_stateless_flag_set_before_history_processor() -> None:
 @pytest.mark.asyncio
 async def test_concurrent_sql_tracking_is_isolated() -> None:
     import asyncio
-    import contextvars
 
     from agent.clickhouse_agent import _sql_used_var
 

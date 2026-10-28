@@ -24,6 +24,7 @@ This document describes the architecture of the ClickHouse MCP Agent library.
    - For parallel queries use `agent.run_batch(queries, ...)` which creates an asyncio task per query.
 4. `process_tool_call` intercepts every MCP tool call:
    - `allowed_tables=[]` → blocks all calls immediately.
+   - Tool results from `mcp-clickhouse` arrive as JSON strings; they are decoded (`_parse_tool_result`) before filtering. If a listing cannot be decoded while an allow-list is active, an empty result is returned (fail closed).
    - `allowed_databases` set → `list_databases` returns only allowed databases; any `list_tables` call for an unlisted database returns empty.
    - `list_tables` with `allowed_tables` patterns → fans out one call per pattern via `list_tables_multi`, deduplicates results.
    - Any tool with a `query` argument → SQL is appended to the per-call `_sql_used_var` contextvar list (isolated per asyncio task).
@@ -36,7 +37,7 @@ This document describes the architecture of the ClickHouse MCP Agent library.
 - **PydanticAI Agent**: Structured model IO with strongly-typed `deps` (`ClickHouseDependencies`) and `output` (`ClickHouseOutput`).
 - **MCP Tooling**: All ClickHouse operations go through a single MCP server toolset.
 - **Runtime Config**: Provider/model/connection settings configured at runtime — no static `.env` dependency.
-- **Allow-lists**: Per-call `allowed_tables` and `allowed_databases` constrain access scope without managing multiple API keys or agents.
+- **Allow-lists**: Per-call `allowed_tables` and `allowed_databases` scope what the model *discovers*. They do not filter SQL sent to `run_query`; restrict reads with ClickHouse grants (see README → Security).
 - **SQL capture**: `RunResult.sql_used` is populated by intercepting tool call arguments via a `contextvars.ContextVar` — no prompt engineering required, safe for concurrent use.
 - **Persistent server**: `async with ClickHouseAgent()` keeps the MCP subprocess alive across multiple `run()` / `run_batch()` calls; the one-shot pattern starts/stops per call.
 - **Result cache**: `ClickHouseAgent(enable_cache=True)` caches stateless query results in an instance dict keyed by `(query, frozenset(tables), frozenset(databases))`.
@@ -83,7 +84,7 @@ Connection settings for local Docker: `host=localhost`, `port=8123`, `user=defau
 
 ## Version
 
-- Current library version: `0.12.0` (from `pyproject.toml`).
+- Current library version: `0.12.1` (from `pyproject.toml`).
 
 ## License
 

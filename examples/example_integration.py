@@ -14,7 +14,6 @@ import time
 
 from agent.clickhouse_agent import ClickHouseAgent
 from agent.exceptions import AgentExecutionError, MCPConnectionError
-from pydantic_ai import Agent
 
 config_done = False
 
@@ -196,7 +195,7 @@ async def test_reset() -> None:
 
 async def test_error_handling() -> None:
     section("8. Error handling — typed exceptions")
-    from agent.exceptions import AgentExecutionError, ClickHouseMCPError, MCPConnectionError
+    from agent.exceptions import ClickHouseMCPError
 
     assert issubclass(MCPConnectionError, ClickHouseMCPError)
     assert issubclass(AgentExecutionError, ClickHouseMCPError)

@@ -33,7 +33,7 @@ jobs:
 
     - name: Lint with ruff
       run: |
-        ruff check agent/
+        ruff check .
 
     - name: Type check with mypy
       run: |
@@ -55,6 +55,54 @@ jobs:
     - name: Run tests
       run: |
         pytest tests/ -v
+
+  live-clickhouse:
+    name: Live tests (real ClickHouse)
+    runs-on: ubuntu-latest
+    services:
+      clickhouse:
+        image: clickhouse/clickhouse-server:latest
+        ports:
+          - 8123:8123
+        env:
+          CLICKHOUSE_USER: test
+          CLICKHOUSE_PASSWORD: test
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+        options: >-
+          --ulimit nofile=262144:262144
+          --health-cmd "clickhouse-client --user test --password test --query 'SELECT 1'"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      CLICKHOUSE_LIVE_TESTS: "1"
+      CLICKHOUSE_HOST: localhost
+      CLICKHOUSE_PORT: "8123"
+      CLICKHOUSE_USER: test
+      CLICKHOUSE_PASSWORD: test
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install UV package manager
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install dependencies
+      run: |
+        uv pip install --system -e ".[dev]"
+
+    - name: Seed ClickHouse
+      run: |
+        python tests/fixtures/seed_live.py
+
+    - name: Run live tests
+      run: |
+        pytest tests/test_clickhouse_live.py -v
 
   package-test:
     runs-on: ubuntu-latest
