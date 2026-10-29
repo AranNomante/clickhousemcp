@@ -1,5 +1,5 @@
 # ClickHouse MCP Agent
-
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/clickhouse-mcp-agent?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/clickhouse-mcp-agent)
 [![PyPI](https://img.shields.io/pypi/v/clickhouse-mcp-agent)](https://pypi.org/project/clickhouse-mcp-agent/)
 [![pydantic-ai-slim](https://img.shields.io/badge/pydantic--ai--slim-1.96.1-blue)](https://pypi.org/project/pydantic-ai-slim/)
 [![mcp-clickhouse](https://img.shields.io/badge/mcp--clickhouse-0.4.0-blue)](https://pypi.org/project/mcp-clickhouse/)
