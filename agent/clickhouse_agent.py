@@ -8,14 +8,14 @@ import asyncio
 import contextvars
 import json
 import logging
-import os
+import sys
 from collections.abc import AsyncGenerator
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass, field, replace
+from typing import Any, Literal, overload
 
 from pydantic_ai import Agent
 from pydantic_ai.mcp import CallToolFunc, MCPServerStdio, RunContext
-from pydantic_ai.messages import ModelMessage
+from pydantic_ai.messages import ModelMessage, ModelResponse
 from pydantic_ai.usage import RunUsage
 
 from agent.default_instruction import DefaultInstructions
@@ -31,6 +31,16 @@ except ImportError:
 # Per-task SQL accumulator — set at the start of each run() call so concurrent
 # runs on the same agent instance each track their own SQL independently.
 _sql_used_var: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar("_sql_used", default=None)
+
+
+def _is_connection_error(e: BaseException) -> bool:
+    """MCP stdio failures surface as an anyio TaskGroup exception group."""
+    return type(e).__name__ in ("ExceptionGroup", "BaseExceptionGroup") or "TaskGroup" in str(e)
+
+
+def _copy_result(r: "RunResult") -> "RunResult":
+    """Shallow-copy a cached RunResult so callers can't mutate the cached lists."""
+    return replace(r, messages=list(r.messages), new_messages=list(r.new_messages), sql_used=list(r.sql_used))
 
 
 def _parse_tool_result(result: Any) -> Any:
@@ -109,25 +119,8 @@ class ClickHouseAgent:
     ):
         from .config import config
 
-        selected_provider = config.model_provider
-
-        api_key_attr = f"{selected_provider.upper()}_API_KEY"
-        model_api_key = getattr(config.model_api, api_key_attr, None)
-
-        # Only set the environment variable if we actually have a key.
-        # Avoid overwriting an existing env var and skip None values to
-        # keep default instantiation working in tests and minimal setups.
-        if model_api_key:
-            os.environ.setdefault(api_key_attr, model_api_key)
-
         # Set up environment for MCP server
-        self.env = {
-            "CLICKHOUSE_HOST": config.clickhouse_host,
-            "CLICKHOUSE_PORT": config.clickhouse_port,
-            "CLICKHOUSE_USER": config.clickhouse_user,
-            "CLICKHOUSE_PASSWORD": config.clickhouse_password,
-            "CLICKHOUSE_SECURE": config.clickhouse_secure,
-        }
+        self.env = config.mcp_server_env()
         # Defer heavy initialization (model provider may require API keys).
         self.server = None
         self.agent = None
@@ -144,17 +137,21 @@ class ClickHouseAgent:
         if self.agent is not None and self.server is not None:
             return
 
-        from .config import config
+        from .config import apply_api_key, config, provider_from_model
 
         model: Any = config.ai_model
+
+        # Export the API key now (not at __init__) so keys set after construction still apply.
+        apply_api_key(config.model_api, provider_from_model(config.ai_model) or config.model_provider)
 
         # Initialize MCP server and agent when first needed
         # MCPServerStdio is deprecated in pydantic-ai 1.102+ but the replacement
         # (MCPToolset + StdioTransport) requires fastmcp>=2.14 which conflicts with
         # mcp-clickhouse's fastmcp constraint. Revisit when mcp-clickhouse upgrades.
+        # Launch via this interpreter so it works without the venv's scripts dir on PATH.
         self.server = MCPServerStdio(  # type: ignore[deprecated]
-            "mcp-clickhouse",
-            args=[],
+            sys.executable,
+            args=["-m", "mcp_clickhouse.main"],
             env=self.env,
             process_tool_call=self.process_tool_call,
         )
@@ -211,11 +208,13 @@ class ClickHouseAgent:
         from .config import config
         from .history_processor import history_processor
 
+        # Each response's input tokens already include all earlier messages, so the latest
+        # response's usage is the current context size. Summing every response overcounts.
         total_tokens = 0
-
-        for m in message_history if message_history else []:
-            if hasattr(m, "usage"):
-                total_tokens += m.usage.total_tokens
+        for m in reversed(message_history or []):
+            if isinstance(m, ModelResponse):
+                total_tokens = m.usage.total_tokens
+                break
 
         # Ensure we always pass a concrete list to the processor
         concrete_history: list[ModelMessage] = message_history or []
@@ -283,7 +282,7 @@ class ClickHouseAgent:
         if self._enable_cache and is_stateless:
             cache_key = self._make_cache_key(query, allowed_tables, allowed_databases)
             if cache_key in self._cache:
-                return self._cache[cache_key]
+                return _copy_result(self._cache[cache_key])
 
         try:
             self._ensure_agent()
@@ -322,17 +321,49 @@ class ClickHouseAgent:
                 sql_used=list(local_sql),
             )
             if self._enable_cache and is_stateless:
-                self._cache[self._make_cache_key(query, allowed_tables, allowed_databases)] = run_result
+                self._cache[self._make_cache_key(query, allowed_tables, allowed_databases)] = _copy_result(run_result)
             return run_result
         except (MCPConnectionError, AgentExecutionError):
             raise
         except Exception as e:
             logger.error("MCP agent execution failed: %s", e)
-            if "TaskGroup" in str(e):
+            if _is_connection_error(e):
                 raise MCPConnectionError(
                     "MCP server connection failed. This might be due to network issues or UV environment conflicts."
                 ) from e
             raise AgentExecutionError("MCP agent execution failed.") from e
+
+    @property
+    def last_sql_used(self) -> list[str]:
+        """SQL executed by the most recently finished run()/run_stream() call.
+
+        Use this after consuming ``run_stream()``, which yields nodes rather than a RunResult.
+        With concurrent runs on one instance it reflects whichever finished last; use
+        ``RunResult.sql_used`` there instead.
+        """
+        return list(self._sql_used)
+
+    @overload
+    async def run_batch(
+        self,
+        queries: list[str],
+        *,
+        allowed_tables: list[str] | None = ...,
+        allowed_databases: list[str] | None = ...,
+        message_history: list[ModelMessage] | None = ...,
+        return_exceptions: Literal[False] = ...,
+    ) -> list[RunResult]: ...
+
+    @overload
+    async def run_batch(
+        self,
+        queries: list[str],
+        *,
+        allowed_tables: list[str] | None = ...,
+        allowed_databases: list[str] | None = ...,
+        message_history: list[ModelMessage] | None = ...,
+        return_exceptions: Literal[True],
+    ) -> list[RunResult | BaseException]: ...
 
     async def run_batch(
         self,
@@ -341,7 +372,8 @@ class ClickHouseAgent:
         allowed_tables: list[str] | None = None,
         allowed_databases: list[str] | None = None,
         message_history: list[ModelMessage] | None = None,
-    ) -> list[RunResult]:
+        return_exceptions: bool = False,
+    ) -> list[RunResult] | list[RunResult | BaseException]:
         """Run multiple queries concurrently against this agent.
 
         Each query executes in its own asyncio task with an independent SQL-tracking
@@ -350,8 +382,13 @@ class ClickHouseAgent:
         Prefer using ``async with ClickHouseAgent() as agent:`` before calling
         ``run_batch()`` to keep the MCP subprocess alive across all queries.
 
-        Raises the first exception encountered; partial results are discarded.
+        By default raises the first exception encountered and discards partial results.
+        With ``return_exceptions=True``, failed queries appear as exception objects in
+        the returned list (in input order) and the other results are kept.
         """
+        # Summarize shared history once, not once per query.
+        if message_history:
+            message_history = await self._use_history_processor(message_history)
         tasks = [
             asyncio.create_task(
                 self.run(
@@ -363,6 +400,8 @@ class ClickHouseAgent:
             )
             for q in queries
         ]
+        if return_exceptions:
+            return list(await asyncio.gather(*tasks, return_exceptions=True))
         try:
             return list(await asyncio.gather(*tasks))
         except Exception:
@@ -406,7 +445,7 @@ class ClickHouseAgent:
             raise
         except Exception as e:
             logger.error("MCP agent execution failed: %s", e)
-            if "TaskGroup" in str(e):
+            if _is_connection_error(e):
                 raise MCPConnectionError(
                     "MCP server connection failed. This might be due to network issues or UV environment conflicts."
                 ) from e

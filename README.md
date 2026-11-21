@@ -68,6 +68,7 @@ config.set_ai_model("openai:gpt-4o-mini")
 config.set_model_api_key("openai", "your_api_key_here")
 config.set_clickhouse(host="localhost", port="8123", user="default", password="", secure="false")
 
+
 async def main():
     agent = ClickHouseAgent()
     result = await agent.run(
@@ -78,6 +79,7 @@ async def main():
     print("Analysis:", result.analysis)
     print("Confidence:", result.confidence)
     print("SQL used:", result.sql_used)
+
 
 asyncio.run(main())
 ```
@@ -103,6 +105,30 @@ async with ClickHouseAgent() as agent:
     )
     for r in results:
         print(r.analysis)
+
+    # Keep successful results when some queries fail:
+    mixed = await agent.run_batch(["ok query", "bad query"], return_exceptions=True)
+    # -> [RunResult, Exception] in input order
+```
+
+### Connection presets and options
+
+```python
+config.use_connection("local")  # localhost:8123, no TLS (docker compose)
+config.use_connection("playground")  # public ClickHouse demo server
+
+# Ports and flags accept ints/bools; extra options are passed to mcp-clickhouse
+config.set_clickhouse(
+    host="ch.internal",
+    port=8443,
+    user="agent_reader",
+    password="...",
+    secure=True,
+    database="demo",
+    role="analyst",
+    query_timeout=60,
+    connect_timeout=10,
+)
 ```
 
 ### Query result cache
@@ -118,13 +144,13 @@ result = await agent.run(query="how many orders?", allowed_databases=["demo"])
 ```python
 agent = ClickHouseAgent()
 await agent.run(query="...")
-await agent.reset()          # tear down MCP subprocess
+await agent.reset()  # tear down MCP subprocess
 await agent.run(query="...")  # re-initializes on next call
 ```
 
 ### Switching providers
 
-All providers use the same interface — just swap the model string and key:
+All providers use the same interface — just swap the model string and key. The provider is read from the model prefix (`openai:`, `anthropic:`, ...), and a key passed to `set_model_api_key` overrides one already in the environment:
 
 ```python
 # Anthropic Claude 4
@@ -158,15 +184,16 @@ GRANT SELECT ON demo.orders TO agent_reader;
 GRANT SELECT ON demo.products TO agent_reader;
 ```
 
-ClickHouse then rejects any query outside those grants, whatever SQL the model generates.
+ClickHouse then rejects any query outside those grants, whatever SQL the model generates. You can also pass `role=` to `config.set_clickhouse()` to run the agent under a specific ClickHouse role.
 
 ## Message History & Summarization
 
-Pass `message_history` between calls for multi-turn conversations. When token usage exceeds `summarize_config.token_limit`, older messages are automatically summarized into a compact form by a separate summarizer agent.
+Pass `message_history` between calls for multi-turn conversations. When the conversation's context size (the latest response's token usage) exceeds `summarize_config.token_limit`, the history is replaced by a short summary written by a separate summarizer agent. The summarizer can use a different provider from the main agent; give it its own key, or summarization is skipped with a warning. The default limit is 50,000 tokens:
 
 ```python
-summarize_config.set_token_limit(10000)
+summarize_config.set_token_limit(20000)
 summarize_config.set_ai_model("google:gemini-3.1-flash-lite")
+summarize_config.set_model_api_key("google", "your_key")
 ```
 
 ## Output
@@ -250,7 +277,6 @@ All dependencies are managed via `pyproject.toml`.
 ### 🚧 Next
 
 - Migrate to pydantic-ai 2.x (`MCPToolset`) and `mcp-clickhouse` 0.7
-- `role` and query timeout options (ClickHouse-enforced access control)
 
 ### 🔭 Post-1.0 — Future
 

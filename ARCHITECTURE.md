@@ -17,7 +17,7 @@ This document describes the architecture of the ClickHouse MCP Agent library.
 1. Configure model/provider/API key via `agent.config.config` and optionally set ClickHouse connection parameters.
 2. Instantiate `ClickHouseAgent()`, which:
    - Reads provider/model from `config` and sets the provider API key into the environment.
-   - Lazily constructs `MCPServerStdio("mcp-clickhouse", env=...)` and a `pydantic_ai.Agent` on first use.
+   - Lazily constructs `MCPServerStdio(sys.executable, args=["-m", "mcp_clickhouse.main"], env=config.mcp_server_env())` and a `pydantic_ai.Agent` on first use, exporting the provider API key (derived from the model prefix) at that point.
 3. Call `agent.run(query=..., allowed_tables=..., allowed_databases=..., message_history=...)`:
    - If running outside a context manager: wraps the call in `async with agent:` (MCP server starts and stops each time).
    - If running inside `async with ClickHouseAgent() as agent:`: server is already running; call goes directly to `agent.run()`.
@@ -30,7 +30,7 @@ This document describes the architecture of the ClickHouse MCP Agent library.
    - Any tool with a `query` argument → SQL is appended to the per-call `_sql_used_var` contextvar list (isolated per asyncio task).
 5. The agent invokes MCP tools to inspect schema and execute SQL; results flow into a `ClickHouseOutput`.
 6. A `RunResult` is returned with `analysis`, `confidence`, `sql_used`, `usage`, and updated `messages/new_messages/last_message`.
-7. If history grows past `summarize_config.token_limit`, `history_processor` summarizes earlier messages using the summarizer model.
+7. If the latest response's token usage exceeds `summarize_config.token_limit`, `history_processor` replaces the history with a single user message holding a summary from the summarizer model (using its own provider key).
 
 ## Patterns & Conventions
 
