@@ -68,6 +68,7 @@ config.set_ai_model("openai:gpt-4o-mini")
 config.set_model_api_key("openai", "your_api_key_here")
 config.set_clickhouse(host="localhost", port="8123", user="default", password="", secure="false")
 
+
 async def main():
     agent = ClickHouseAgent()
     result = await agent.run(
@@ -78,6 +79,7 @@ async def main():
     print("Analysis:", result.analysis)
     print("Confidence:", result.confidence)
     print("SQL used:", result.sql_used)
+
 
 asyncio.run(main())
 ```
@@ -118,7 +120,7 @@ result = await agent.run(query="how many orders?", allowed_databases=["demo"])
 ```python
 agent = ClickHouseAgent()
 await agent.run(query="...")
-await agent.reset()          # tear down MCP subprocess
+await agent.reset()  # tear down MCP subprocess
 await agent.run(query="...")  # re-initializes on next call
 ```
 

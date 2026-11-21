@@ -31,9 +31,7 @@ def scripted_model(calls: list[tuple[str, dict[str, Any]]], seen: dict[str, Any]
     return FunctionModel(model)
 
 
-async def run_scripted(
-    calls: list[tuple[str, dict[str, Any]]], **run_kwargs: Any
-) -> tuple[dict[str, Any], RunResult]:
+async def run_scripted(calls: list[tuple[str, dict[str, Any]]], **run_kwargs: Any) -> tuple[dict[str, Any], RunResult]:
     """Run ClickHouseAgent once with a scripted model; return (tool results seen, RunResult)."""
     seen: dict[str, Any] = {}
     agent = ClickHouseAgent()

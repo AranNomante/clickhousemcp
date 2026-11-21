@@ -20,6 +20,7 @@ config_done = False
 
 def setup() -> None:
     from agent.config import config
+
     config.set_log_level("WARNING")  # suppress noise during integration run
     config.set_clickhouse(host="localhost", port="8123", user="default", password="", secure="false")
     config.set_ai_model(os.environ.get("AI_MODEL", "google:gemini-3.1-flash-lite"))
