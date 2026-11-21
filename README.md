@@ -274,6 +274,14 @@ All dependencies are managed via `pyproject.toml`.
 - Contract tests against the real `mcp-clickhouse` server, and live tests against ClickHouse in CI
 - Grok (xAI) and Groq provider setup corrected
 
+### ✅ 0.13 — Fixes and connection options
+
+- Multi-turn history summarization fixed (it previously wiped the conversation); default `token_limit` raised to 50,000
+- `role`, `database`, `verify` and timeout options passed to `mcp-clickhouse` (ClickHouse-enforced access control)
+- `config.use_connection()` presets, `run_batch(return_exceptions=True)`, `last_sql_used`
+- Provider derived from the model prefix; explicit API keys override env vars
+- Wire tests against a fake OpenAI-compatible server; live tests for roles and timeouts
+
 ### 🚧 Next
 
 - Migrate to pydantic-ai 2.x (`MCPToolset`) and `mcp-clickhouse` 0.7
