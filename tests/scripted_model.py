@@ -3,7 +3,7 @@
 import json
 from typing import Any
 
-from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart, ToolReturnPart
+from pydantic_ai.messages import ModelMessage, ModelResponse, RetryPromptPart, ToolCallPart, ToolReturnPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from agent.clickhouse_agent import ClickHouseAgent, RunResult
@@ -21,6 +21,8 @@ def scripted_model(calls: list[tuple[str, dict[str, Any]]], seen: dict[str, Any]
             for part in getattr(m, "parts", []):
                 if isinstance(part, ToolReturnPart):
                     seen[part.tool_name] = part.content
+                elif isinstance(part, RetryPromptPart) and part.tool_name:
+                    seen[part.tool_name] = part.content  # tool errors come back as retry prompts
         step["n"] += 1
         if step["n"] <= len(calls):
             name, args = calls[step["n"] - 1]

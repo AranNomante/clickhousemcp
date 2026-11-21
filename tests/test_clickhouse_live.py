@@ -77,3 +77,54 @@ async def test_run_query_not_restricted_by_allow_lists_known_limitation() -> Non
     )
 
     assert as_obj(seen["run_query"])["rows"] == [[2]]
+
+
+# --- role= and query_timeout= (passed through to mcp-clickhouse) ----------------------
+
+LIMITED_USER, LIMITED_PASSWORD = "agent_limited", "agent-limited-test"  # created by seed_live.py
+
+
+@pytest.fixture
+def limited_user(monkeypatch: pytest.MonkeyPatch) -> None:
+    from agent.config import config
+
+    monkeypatch.setattr(config, "clickhouse_user", LIMITED_USER)
+    monkeypatch.setattr(config, "clickhouse_password", LIMITED_PASSWORD)
+
+
+def _set(monkeypatch: pytest.MonkeyPatch, **options: object) -> None:
+    from agent.config import config
+
+    for name, value in options.items():
+        monkeypatch.setattr(config, f"clickhouse_{name}", value)
+
+
+@pytest.mark.usefixtures("limited_user")
+async def test_role_blocks_reads_outside_its_grants(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(monkeypatch, role="demo_reader")
+
+    seen, result = await run_scripted([("run_query", {"query": "SELECT count() FROM secret.salaries"})])
+
+    error = str(seen["run_query"])
+    assert "ACCESS_DENIED" in error or "Not enough privileges" in error
+    assert result.sql_used == ["SELECT count() FROM secret.salaries"]
+
+
+@pytest.mark.usefixtures("limited_user")
+async def test_role_allows_reads_inside_its_grants(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(monkeypatch, role="demo_reader")
+    seen, _ = await run_scripted([("run_query", {"query": "SELECT count() FROM demo.orders"})])
+    assert as_obj(seen["run_query"])["rows"] == [[25]]
+
+    # Same user, other role: now the secret table is readable. Shows the role is what decides.
+    _set(monkeypatch, role="secret_reader")
+    seen, _ = await run_scripted([("run_query", {"query": "SELECT count() FROM secret.salaries"})])
+    assert as_obj(seen["run_query"])["rows"] == [[2]]
+
+
+async def test_query_timeout_is_enforced(monkeypatch: pytest.MonkeyPatch) -> None:
+    _set(monkeypatch, query_timeout=1)
+
+    seen, _ = await run_scripted([("run_query", {"query": "SELECT sleep(3)"})])
+
+    assert "timed out" in str(seen["run_query"]).lower()

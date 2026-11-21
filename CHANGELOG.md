@@ -1,6 +1,41 @@
 
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **History summarization wiped the conversation.** `summarize_old_messages` returned the summarizer's first new message, an empty `ModelRequest`, and dropped the summary. It now returns one user message with the summary text, which is valid history for every provider.
+- **Summarization triggered far too early.** Token usage was summed over every response, but each response's input already includes the earlier messages. The latest response's usage is now used as the context size.
+- **Summarizer API key was ignored.** `summarize_config.set_model_api_key()` is now applied, and summarization no longer requires the same provider as the main agent. It's skipped with a warning only when no key is available.
+- **`ClickHouseConnections.LOCAL` used port 9000** (native protocol). `mcp-clickhouse` speaks HTTP, so it's now 8123.
+- **Model and provider could disagree.** `set_ai_model("openai:...")` now also sets `model_provider` from the prefix, so the right API key is used.
+- **API keys set after construction, or over an existing env var, were ignored.** Keys are now exported when the agent is first built, and an explicit `set_model_api_key` overrides the environment.
+- Cached `RunResult`s are returned as copies, so mutating a result no longer corrupts the cache.
+- `run_batch` summarizes shared `message_history` once instead of once per query.
+- MCP connection errors are detected by exception type (exception groups), not only by message text.
+- `setup.sh` no longer tells you to configure a `.env` file the library never reads.
+
+### Added
+
+- `config.use_connection("local" | "playground" | ClickHouseConfig)` applies a connection preset.
+- `config.set_clickhouse()` accepts `int` ports and `bool` flags, plus `database`, `role`, `verify`, `connect_timeout`, `send_receive_timeout` and `query_timeout`, which are passed to `mcp-clickhouse`.
+- `run_batch(..., return_exceptions=True)` keeps successful results when some queries fail.
+- `ClickHouseAgent.last_sql_used`: SQL from the most recent `run()` / `run_stream()`.
+
+### Changed
+
+- **Default `summarize_config.token_limit` raised from 1,000 to 50,000.** Tool definitions and instructions alone are ~600 tokens per request, so with summarization now working, the old default would have compressed the history to a 50-word summary on nearly every follow-up and added an extra LLM call per turn. Set it explicitly to keep the old behavior.
+- Summarization now runs when the summarizer's provider differs from the main agent's, as long as a key is available (from `summarize_config.set_model_api_key()` or the env var). Previously it was always skipped.
+- A key passed to `set_model_api_key()` now overwrites an existing env var of the same name.
+- The MCP server is launched as `sys.executable -m mcp_clickhouse.main`, so it works when the venv's scripts directory isn't on `PATH`.
+
+### Tests
+
+- `tests/test_openai_wire.py` + `tests/fake_openai_server.py`: the agent talks over real HTTP to a fake OpenAI-compatible server, through pydantic-ai's real OpenAI provider and the real `mcp-clickhouse` server. The fake server rejects requests the real API would reject (conversation starting with the assistant, unanswered or orphaned tool calls), so these tests check provider selection, API-key export and that summarized history is accepted. With the old summarizer bug, the follow-up request is rejected with a 400. No API key or model needed; runs in the normal test job.
+- Live tests for `role=` (a user with no direct grants and two roles; the active role decides what's readable) and `query_timeout=`. `seed_live.py` creates the user and roles.
+- `scripted_model` also records tool errors (retry prompts), so tests can assert on them.
+
 ## [0.12.1] - 2026-10-29
 
 ### Fixed

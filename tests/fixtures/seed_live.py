@@ -11,6 +11,7 @@ from pathlib import Path
 import clickhouse_connect
 
 ROOT = Path(__file__).resolve().parents[2]
+LIMITED_PASSWORD = "agent-limited-test"  # test-only user created below; also used by test_clickhouse_live.py
 
 
 def main() -> None:
@@ -44,7 +45,17 @@ def main() -> None:
     client.command("DROP TABLE IF EXISTS secret.salaries")
     client.command("CREATE TABLE secret.salaries (name String, salary UInt32) ENGINE = MergeTree ORDER BY name")
     client.command("INSERT INTO secret.salaries VALUES ('alice', 250000), ('bob', 180000)")
-    print("Seeded demo.orders, demo.products, secret.salaries")
+
+    # A user with no direct grants and two roles, for the `role=` live tests. Privileges come
+    # only from the active role, so selecting a role must actually narrow what can be read.
+    client.command("DROP USER IF EXISTS agent_limited")
+    for role, database in (("demo_reader", "demo"), ("secret_reader", "secret")):
+        client.command(f"DROP ROLE IF EXISTS {role}")
+        client.command(f"CREATE ROLE {role}")
+        client.command(f"GRANT SELECT ON {database}.* TO {role}")
+    client.command(f"CREATE USER agent_limited IDENTIFIED BY '{LIMITED_PASSWORD}'")
+    client.command("GRANT demo_reader, secret_reader TO agent_limited")
+    print("Seeded demo.orders, demo.products, secret.salaries, user agent_limited with roles")
 
 
 if __name__ == "__main__":

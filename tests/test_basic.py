@@ -33,7 +33,7 @@ def test_builtin_connections_exist() -> None:
     # Test local config
     local = connections["local"]
     assert local.host == "localhost"
-    assert local.port == "9000"
+    assert local.port == "8123"  # HTTP; mcp-clickhouse doesn't speak the native protocol (9000)
     # Test default config
     default = connections["default"]
     assert default.host == "localhost"

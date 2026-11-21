@@ -1,5 +1,6 @@
 """Integration-style tests using mocked MCP tool calls."""
 
+import sys
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -292,9 +293,10 @@ def test_ensure_agent_constructs_without_deprecations() -> None:
         agent = ClickHouseAgent()
         agent._ensure_agent()
 
-        # MCPServerStdio called once with mcp-clickhouse as first arg
+        # MCPServerStdio called once, launching mcp-clickhouse via the current interpreter
         mock_mcp.assert_called_once()
-        assert mock_mcp.call_args.args[0] == "mcp-clickhouse"
+        assert mock_mcp.call_args.args[0] == sys.executable
+        assert mock_mcp.call_args.kwargs["args"] == ["-m", "mcp_clickhouse.main"]
 
         # Agent[T, T](...) — subscript returns a new mock, which is then called
         agent_init = mock_agent_cls.__getitem__.return_value
