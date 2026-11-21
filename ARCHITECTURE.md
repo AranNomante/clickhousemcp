@@ -84,7 +84,7 @@ Connection settings for local Docker: `host=localhost`, `port=8123`, `user=defau
 
 ## Version
 
-- Current library version: `0.12.1` (from `pyproject.toml`).
+- Current library version: `0.13.0` (from `pyproject.toml`).
 
 ## License
 
