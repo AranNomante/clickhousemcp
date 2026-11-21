@@ -267,6 +267,7 @@ def test_run_result_sql_used_populated() -> None:
 
 def test_agent_has_aenter_aexit() -> None:
     import inspect
+
     agent = ClickHouseAgent()
     assert hasattr(agent, "__aenter__")
     assert hasattr(agent, "__aexit__")

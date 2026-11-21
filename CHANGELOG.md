@@ -36,6 +36,13 @@
 - Live tests for `role=` (a user with no direct grants and two roles; the active role decides what's readable) and `query_timeout=`. `seed_live.py` creates the user and roles.
 - `scripted_model` also records tool errors (retry prompts), so tests can assert on them.
 
+### CI
+
+- Pinned the ClickHouse image to `clickhouse/clickhouse-server:26.8.42.13` (LTS) in CI and `docker-compose.yml` instead of `latest`, so live tests are reproducible.
+- CI checks formatting (`ruff format --check .`); reformatted the repo with `ruff format .`.
+
+---
+
 ## [0.12.1] - 2026-10-29
 
 ### Fixed

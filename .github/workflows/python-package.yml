@@ -35,6 +35,10 @@ jobs:
       run: |
         ruff check .
 
+    - name: Check formatting with ruff
+      run: |
+        ruff format --check .
+
     - name: Type check with mypy
       run: |
         mypy agent/
@@ -61,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       clickhouse:
-        image: clickhouse/clickhouse-server:latest
+        image: clickhouse/clickhouse-server:26.8.42.13
         ports:
           - 8123:8123
         env:
